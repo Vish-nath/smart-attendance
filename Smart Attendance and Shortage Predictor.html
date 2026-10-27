@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Smart Attendance and Shortage Predictor</title>
+<style>
+:root{--bg:#f4f6f9;--sf:#fff;--ink:#1b2430;--mu:#5b6776;--ln:#dfe4ea;--br:#1f3a5f;--brt:#fff;--ok:#1e7b4f;--okb:#e5f4ec;--wn:#8a5a00;--wnb:#fdf3dc;--bd:#b3261e;--bdb:#fbe7e5;--tr:#e6eaf0;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f141b;--sf:#171e28;--ink:#e8edf3;--mu:#9aa6b5;--ln:#273140;--br:#8fb3e6;--brt:#0f141b;--ok:#5fcf96;--okb:#12301f;--wn:#f0b84d;--wnb:#33280d;--bd:#ff8a80;--bdb:#3a1714;--tr:#273140}}
+:root[data-theme="dark"]{--bg:#0f141b;--sf:#171e28;--ink:#e8edf3;--mu:#9aa6b5;--ln:#273140;--br:#8fb3e6;--brt:#0f141b;--ok:#5fcf96;--okb:#12301f;--wn:#f0b84d;--wnb:#33280d;--bd:#ff8a80;--bdb:#3a1714;--tr:#273140}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--sf);z-index:10}
+h1,h2,h3,p{margin:0}
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+.side{background:var(--sf);border-right:1px solid var(--ln);padding:20px 14px;position:sticky;top:env(safe-area-inset-top,0px);height:100vh;align-self:start}
+.brand{font-weight:700;font-size:15px;color:var(--br);padding:0 10px 18px;border-bottom:1px solid var(--ln);margin-bottom:14px;line-height:1.3}
+.brand small{display:block;font-weight:400;color:var(--mu);font-size:12px;margin-top:2px}
+nav{display:flex;flex-direction:column;gap:2px}
+nav a{display:flex;align-items:center;gap:10px;padding:10px;border-radius:6px;color:var(--mu);text-decoration:none;font-weight:500;transition:background .15s,color .15s}
+nav a:hover{background:var(--bg);color:var(--ink)}
+nav a[aria-current=page]{background:var(--bg);color:var(--br);font-weight:600}
+nav svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.badge{margin-left:auto;background:var(--bd);color:#fff;border-radius:10px;font-size:11px;padding:1px 7px;font-weight:600}
+main{padding:28px clamp(16px,4vw,40px) 40px;max-width:1080px;width:100%}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+h1{font-size:22px;font-weight:700}
+.sub{color:var(--mu);font-size:13px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(12,1fr)}
+.card{background:var(--sf);border:1px solid var(--ln);border-radius:8px;padding:18px;min-width:0}
+.c4{grid-column:span 4}.c8{grid-column:span 8}.c12{grid-column:span 12}
+h2{font-size:13px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px}
+.ring{display:flex;align-items:center;gap:18px}
+.ring svg{width:112px;height:112px;flex:none;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:10}
+.ring .t{stroke:var(--tr)}
+.ring .v{stroke-linecap:round;transition:stroke-dashoffset .9s ease}
+.big{font-size:30px;font-weight:700;line-height:1.1}
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center}
+.stat b{display:block;font-size:24px}
+.stat span{font-size:12px;color:var(--mu)}
+.pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:600}
+.s-ok{background:var(--okb);color:var(--ok)}.s-wn{background:var(--wnb);color:var(--wn)}.s-bd{background:var(--bdb);color:var(--bd)}
+.subj{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.row strong{font-size:15px}
+.bar{position:relative;height:8px;background:var(--tr);border-radius:4px;margin:12px 0 8px;overflow:visible}
+.bar i{display:block;height:100%;border-radius:4px;width:0;transition:width .8s ease}
+.bar u{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);opacity:.55;left:75%}
+.meta{display:flex;justify-content:space-between;font-size:13px;color:var(--mu)}
+.note{margin-top:10px;font-size:13px;padding-top:10px;border-top:1px solid var(--ln)}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--ln)}
+.list li:last-child{border:0;padding-bottom:0}.list li:first-child{padding-top:0}
+.tm{width:78px;flex:none;font-weight:600;font-size:13px;font-variant-numeric:tabular-nums}
+.list small{display:block;color:var(--mu);font-size:12px}
+.tag{font-size:11px;font-weight:600;color:var(--wn);background:var(--wnb);padding:1px 7px;border-radius:8px;margin-left:6px}
+.al{display:flex;gap:12px;padding:14px 16px;border-left:4px solid var(--br);background:var(--sf);border:1px solid var(--ln);border-left-width:4px;border-radius:8px;margin-bottom:12px}
+.al.bd{border-left-color:var(--bd)}.al.wn{border-left-color:var(--wn)}
+.al h3{font-size:14px;margin-bottom:2px}
+.al p{font-size:14px;color:var(--mu)}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:14px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--ln);white-space:nowrap}
+th{font-size:12px;color:var(--mu);font-weight:600;text-transform:uppercase;letter-spacing:.04em;background:var(--bg)}
+td.r{background:var(--wnb)}
+.tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto}
+.tabs button{font:inherit;border:1px solid var(--ln);background:var(--sf);color:var(--mu);padding:6px 14px;border-radius:6px;cursor:pointer;transition:background .15s}
+.tabs button[aria-pressed=true]{background:var(--br);color:var(--brt);border-color:var(--br)}
+.view{display:none}.view.on{display:block;animation:in .25s ease}
+@keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.foot{margin-top:22px;font-size:12px;color:var(--mu)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--br);outline-offset:2px}
+@media (max-width:900px){.c4,.c8{grid-column:span 12}}
+@media (max-width:720px){
+.app{display:block}
+.side{position:fixed;inset:auto 0 0 0;top:auto;height:auto;z-index:20;padding:0 0 env(safe-area-inset-bottom,0px);border:0;border-top:1px solid var(--ln)}
+.brand{display:none}
+nav{flex-direction:row}
+nav a{flex:1;flex-direction:column;gap:2px;font-size:11px;padding:8px 2px;border-radius:0;position:relative}
+.badge{position:absolute;top:4px;left:55%;margin:0;font-size:10px;padding:0 5px}
+main{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
+:root{padding-bottom:0}
+.ring svg{width:96px;height:96px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+<div class="brand">Smart Attendance<small>and Shortage Predictor</small></div>
+<nav aria-label="Primary">
+<a href="#dashboard" data-v="dashboard"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</a>
+<a href="#attendance" data-v="attendance"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>Attendance</a>
+<a href="#timetable" data-v="timetable"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Timetable</a>
+<a href="#alerts" data-v="alerts"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4"/></svg>Alerts<span class="badge" id="nb">0</span></a>
+</nav>
+</aside>
+<main>
+<section class="view" id="dashboard"></section>
+<section class="view" id="attendance"></section>
+<section class="view" id="timetable"></section>
+<section class="view" id="alerts"></section>
+</main>
+</div>
+<script>
+(function(){
+"use strict";
+var TH=75;
+// Sample data. Replace with a fetch() call to the Flask API later.
+var S=[
+{n:"Data Structures",c:"CS301",a:18,t:22},
+{n:"Database Management Systems",c:"CS302",a:16,t:22},
+{n:"Operating Systems",c:"CS303",a:20,t:24},
+{n:"Computer Networks",c:"CS304",a:17,t:23},
+{n:"Software Engineering",c:"CS305",a:19,t:21},
+{n:"Python Laboratory",c:"CSL36",a:9,t:12}];
+var TT={Mon:[["09:00",0,"Room 301"],["10:00",1,"Room 301"],["11:15",2,"Room 304"],["14:00",5,"Lab 2"]],
+Tue:[["09:00",3,"Room 302"],["10:00",4,"Room 302"],["11:15",0,"Room 301"],["14:00",1,"Room 304",1]],
+Wed:[["09:00",2,"Room 304"],["10:00",3,"Room 302"],["11:15",4,"Room 301"],["14:00",5,"Lab 2"]],
+Thu:[["09:00",1,"Room 301"],["10:00",0,"Room 301"],["11:15",3,"Room 302"],["14:00",2,"Room 304"]],
+Fri:[["09:00",4,"Room 302"],["10:00",2,"Room 304"],["11:15",1,"Room 301"],["14:00",3,"Room 302"]],
+Sat:[["09:00",0,"Room 301"],["10:00",5,"Lab 2"],["11:15",4,"Room 302"]]};
+var DAYS=["Mon","Tue","Wed","Thu","Fri","Sat"],FULL={Mon:"Monday",Tue:"Tuesday",Wed:"Wednesday",Thu:"Thursday",Fri:"Friday",Sat:"Saturday"};
+var $=function(i){return document.getElementById(i)};
+function calc(s){var p=s.a/s.t*100,need=Math.max(0,Math.ceil((TH/100*s.t-s.a)/(1-TH/100))),skip=Math.max(0,Math.floor(s.a/(TH/100)-s.t));
+var st=p<TH?"bd":p<TH+5?"wn":"ok";return{p:p,need:need,skip:skip,st:st,lbl:{bd:"Shortage",wn:"Borderline",ok:"Safe"}[st]}}
+S.forEach(function(s){s.m=calc(s)});
+var A=S.reduce(function(x,s){return x+s.a},0),T=S.reduce(function(x,s){return x+s.t},0),O=A/T*100;
+var col=function(st){return"var(--"+st+")"};
+var risk=S.filter(function(s){return s.m.st=="bd"});
+// Alerts follow the wording in the project proposal
+var AL=[];
+risk.forEach(function(s){AL.push({k:"bd",h:"Attendance warning: "+s.n,p:"Notice: Your attendance in "+s.n+" is at "+Math.round(s.m.p)+"%. Attendance in your next "+s.m.need+" "+(s.m.need>1?"classes":"class")+" is required to maintain the "+TH+"% exam eligibility threshold."})});
+AL.push({k:"wn",h:"Class rescheduled: "+S[1].n,p:"Class Rescheduled: "+S[1].n+" originally at 10:00 AM is moved to 2:00 PM in Room 304."});
+AL.push({k:"",h:"Parent–teacher meeting",p:"The parent–teacher meeting (PTM) schedule will be shared by your class coordinator."});
+$("nb").textContent=AL.length;
+function head(t,s){return'<div class="head"><div><h1>'+t+'</h1><p class="sub">'+s+'</p></div></div>'}
+function cls(s){return'<li><span class="tm">'+s[0]+'</span><div><strong>'+S[s[1]].n+'</strong>'+(s[3]?'<span class="tag">Rescheduled</span>':'')+'<small>'+s[2]+'</small></div></li>'}
+function card(s){var m=s.m;return'<article class="card"><div class="row"><strong>'+s.n+'</strong><span class="pill s-'+m.st+'">'+m.lbl+'</span></div>'+
+'<div class="bar" role="img" aria-label="'+m.p.toFixed(1)+' percent attendance"><i data-w="'+m.p+'" style="background:'+col(m.st)+'"></i><u title="'+TH+'% threshold"></u></div>'+
+'<div class="meta"><span>'+s.a+' of '+s.t+' classes</span><span><b>'+m.p.toFixed(1)+'%</b></span></div>'+
+'<p class="note">'+(m.st=="bd"?'Attend the next <b>'+m.need+'</b> consecutive '+(m.need>1?'classes':'class')+' to reach '+TH+'%.':m.skip?'You may miss up to <b>'+m.skip+'</b> '+(m.skip>1?'classes':'class')+' and stay above '+TH+'%.':'No buffer remaining. Avoid missing any class.')+'</p></article>'}
+var d=new Date(),dn=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()],nxt=dn=="Sun";if(nxt)dn="Mon";
+var C=2*Math.PI*50;
+function build(){
+$("dashboard").innerHTML=head("Dashboard","Academic term overview · Sample data")+
+'<div class="grid"><div class="card c4"><h2>Overall attendance</h2><div class="ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="t" cx="60" cy="60" r="50"/><circle class="v" cx="60" cy="60" r="50" stroke="'+col(O<TH?"bd":O<TH+5?"wn":"ok")+'" stroke-dasharray="'+C+'" stroke-dashoffset="'+C+'" data-o="'+C*(1-O/100)+'"/></svg><div><div class="big">'+O.toFixed(1)+'%</div><p class="sub">'+A+' of '+T+' classes attended</p></div></div></div>'+
+'<div class="card c8"><h2>Eligibility summary</h2><div class="stat"><div><b style="color:var(--ok)">'+S.filter(function(s){return s.m.st=="ok"}).length+'</b><span>Safe</span></div><div><b style="color:var(--wn)">'+S.filter(function(s){return s.m.st=="wn"}).length+'</b><span>Borderline</span></div><div><b style="color:var(--bd)">'+risk.length+'</b><span>In shortage</span></div></div><p class="note sub">Exam eligibility requires at least '+TH+'% attendance in every subject.</p></div>'+
+'<div class="card c8"><h2>'+(nxt?"Next working day (Monday)":"Today · "+FULL[dn])+'</h2><ul class="list">'+(TT[dn]||[]).map(cls).join("")+'</ul></div>'+
+'<div class="card c4"><h2>Priority alerts</h2><ul class="list">'+AL.slice(0,3).map(function(a){return'<li><div><strong>'+a.h+'</strong><small>'+a.p.slice(0,90)+'…</small></div></li>'}).join("")+'</ul></div></div>';
+$("attendance").innerHTML=head("Attendance","Subject-wise status against the "+TH+"% threshold")+'<div class="subj">'+S.map(card).join("")+'</div><p class="foot">The vertical marker on each bar shows the '+TH+'% threshold.</p>';
+var h='<div class="tabs" role="group" aria-label="Select day">'+DAYS.map(function(x){return'<button type="button" aria-pressed="'+(x==dn)+'" data-d="'+x+'">'+x+'</button>'}).join("")+'</div><div class="card"><ul class="list" id="tl"></ul></div>';
+$("timetable").innerHTML=head("Timetable","Live schedule · Rescheduled classes are flagged")+h;
+fill(dn);
+$("alerts").innerHTML=head("Alerts","Notifications generated from attendance and schedule rules")+AL.map(function(a){return'<div class="al '+a.k+'"><div><h3>'+a.h+'</h3><p>'+a.p+'</p></div></div>'}).join("");
+}
+function fill(x){$("tl").innerHTML=TT[x].map(cls).join("")}
+document.addEventListener("click",function(e){var b=e.target.closest("[data-d]");if(!b)return;
+document.querySelectorAll("[data-d]").forEach(function(n){n.setAttribute("aria-pressed",n===b)});fill(b.dataset.d)});
+function show(){var v=(location.hash||"#dashboard").slice(1);if(!$(v))v="dashboard";
+document.querySelectorAll(".view").forEach(function(s){s.classList.toggle("on",s.id==v)});
+document.querySelectorAll("nav a").forEach(function(a){a.dataset.v==v?a.setAttribute("aria-current","page"):a.removeAttribute("aria-current")});
+requestAnimationFrame(function(){requestAnimationFrame(function(){
+document.querySelectorAll("#"+v+" .bar i").forEach(function(i){i.style.width=i.dataset.w+"%"});
+document.querySelectorAll("#"+v+" .ring .v").forEach(function(c){c.style.strokeDashoffset=c.dataset.o})})});
+document.title=v.charAt(0).toUpperCase()+v.slice(1)+" · Smart Attendance"}
+build();addEventListener("hashchange",show);show();
+})();
+</script>
+</body>
+</html>
