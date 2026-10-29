@@ -14,6 +14,20 @@ The app can be opened directly, but browsers restrict offline installation and s
 
 The app also works from an HTTPS static host. It does not send attendance data to that host; data remains in the browser's local storage. Browser storage is isolated per browser/profile and device, so use **Export backup** and **Import backup** to move data between devices or profiles.
 
+## Mobile downloads
+
+Check [GitHub Releases](https://github.com/Vish-nath/smart-attendance/releases) for published mobile builds. Each release should include the version, supported platform, installation notes, and the matching download asset.
+
+### Android
+
+Download the Android `.apk` asset from the release and open it on your device to install. Android may ask you to allow your browser or file manager to install apps from that source. Only install APKs published from this repository's official Releases.
+
+### iPhone and iPad
+
+A native iOS app is not currently included in this project, so there is no iPhone/iPad build to download from GitHub Releases yet. iPhone and iPad users can use the web app in Safari and choose **Share → Add to Home Screen**. If a native iOS version is published later, its release notes will link to the supported distribution method, such as the App Store or TestFlight.
+
+GitHub Releases are used for Android APK downloads. An iOS `.ipa` is not a generally installable equivalent: iOS apps must be signed and distributed through an Apple-supported method.
+
 ## Project layout and platform support
 
 - `app/index.html` contains the app interface and behavior.
@@ -21,6 +35,7 @@ The app also works from an HTTPS static host. It does not send attendance data t
 - `assets/icon.svg` contains the app icon.
 - `service-worker.js` configures offline caching.
 - `index.html` preserves the simple site-root entry point by redirecting to the app.
+- `mobile/` contains the Flutter Android app and its bundled web interface.
 
 The repository includes both the responsive web app (PWA) and a Flutter Android wrapper in `mobile/`. The Android app bundles the same interface for offline use. Browser install availability and notification behavior depend on the browser and operating-system version.
 
