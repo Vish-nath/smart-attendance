@@ -4,15 +4,25 @@ Classmate is a student-only, local-first timetable and attendance tracker. It ha
 
 ## Run and install
 
-The page can be opened directly, but browsers restrict offline installation and system notifications for `file://` pages. For the installable offline app, serve this folder from the device:
+The app can be opened directly, but browsers restrict offline installation and system notifications for `file://` pages. For the installable offline app, serve this folder from the device:
 
 1. Install Python if it is not already available.
 2. From this folder, run `python -m http.server 8000`.
-3. Open `http://localhost:8000/Smart%20Attendance%20and%20Shortage%20Predictor.html`.
-4. Install Classmate from the browser menu. Android Chrome can add it to the home screen; desktop browsers that support PWAs can install it as an app on macOS.
+3. Open `http://localhost:8000/` (which redirects to the app) or `http://localhost:8000/app/index.html`.
+4. Install Classmate from the browser menu. Android Chrome can add it to the home screen. On macOS, install it from a desktop browser that supports PWAs, or use Safari's **Add to Dock** on supported macOS versions.
 5. After the first load, the service worker caches the app shell for offline use. The local server can be stopped after that.
 
 The app also works from an HTTPS static host. It does not send attendance data to that host; data remains in the browser's local storage. Browser storage is isolated per browser/profile and device, so use **Export backup** and **Import backup** to move data between devices or profiles.
+
+## Project layout and platform support
+
+- `app/index.html` contains the app interface and behavior.
+- `app/manifest.webmanifest` configures the installed app.
+- `assets/icon.svg` contains the app icon.
+- `service-worker.js` configures offline caching.
+- `index.html` preserves the simple site-root entry point by redirecting to the app.
+
+This repository provides one responsive, installable web app (PWA), not separate native Android or macOS projects. Install availability and notification behavior depend on the browser and operating-system version.
 
 ## Timetable and attendance
 
