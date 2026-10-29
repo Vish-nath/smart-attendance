@@ -1,28 +1,34 @@
-# Smart Attendance & Shortage Predictor
+# Classmate · Student Attendance
 
-**A mini-project prototype for tracking attendance, spotting shortage risk early, and keeping students up to date on schedule changes.**
+Classmate is a student-only, local-first timetable and attendance tracker. It has no sign-in, backend, teacher tools, or cloud sync. Timetable entries, attendance updates, reminders, and backups are stored in the browser on the device.
 
-## Overview
+## Run and install
 
-The project brings attendance monitoring and academic notifications together in one student-facing dashboard. It is designed to reduce manual roll calls, make attendance status easier to follow, and help students act before falling below exam eligibility requirements.
+The page can be opened directly, but browsers restrict offline installation and system notifications for `file://` pages. For the installable offline app, serve this folder from the device:
 
-## What It Covers
+1. Install Python if it is not already available.
+2. From this folder, run `python -m http.server 8000`.
+3. Open `http://localhost:8000/Smart%20Attendance%20and%20Shortage%20Predictor.html`.
+4. Install Classmate from the browser menu. Android Chrome can add it to the home screen; desktop browsers that support PWAs can install it as an app on macOS.
+5. After the first load, the service worker caches the app shell for offline use. The local server can be stopped after that.
 
-- Automated attendance logging with optional ESP32 or simulated sensor inputs
-- Attendance percentage tracking and shortage-risk alerts
-- Live timetable, class rescheduling, and exam schedule updates
-- Notifications for missed classes and other academic events
+The app also works from an HTTPS static host. It does not send attendance data to that host; data remains in the browser's local storage. Browser storage is isolated per browser/profile and device, so use **Export backup** and **Import backup** to move data between devices or profiles.
 
-> Example: At 74% attendance with a 75% eligibility threshold, the system can warn that attendance is needed in the next three classes.
+## Timetable and attendance
 
-## Proposed Prototype Stack
+- Add only subject names; class times are fixed to the reference timetable:
+  - 08:55–09:50, 09:50–10:45
+  - Tea break 10:45–11:05
+  - 11:05–12:00, 12:00–13:00
+  - Lunch 13:00–14:00
+  - 14:00–14:55, 14:55–15:50, 15:50–16:45
+- Sundays and the 1st and 3rd Saturdays are recurring holidays. Regular timetable entries are skipped on those dates; extra classes may still be added.
+- Mark classes present, absent, or cancelled. Cancelled classes do not contribute to the attended or held totals.
+- Add an extra class by selecting a date, an available fixed period, and a subject name. Attendance totals and the 75% eligibility estimate update immediately after an attendance status is recorded.
+- The calendar, alerts, subject calculations, and timetable work offline.
 
-| Layer | Options in the project concept |
-| --- | --- |
-| Interface | HTML, CSS, and JavaScript; or Flutter/React |
-| Backend | Python with Flask; Node.js is also considered in the architecture |
-| Data | SQLite or Firebase |
-| Prediction | XGBoost and LSTM for exploring attendance-risk prediction |
-| Attendance input | ESP32 or software-emulated sensor input |
+## Notifications and limitations
 
-The PDF describes a prototype concept; these technologies are proposed options, not a claim that every component is already implemented.
+Allow notifications in **Alerts** to receive class-start and class-finish notifications with quick actions where the browser supports notification actions. The app checks class times while it is open or running in the background. Browsers and operating systems do not guarantee scheduled notifications when a fully offline app has been closed or suspended; open the app to see any pending in-app attendance reminders.
+
+All dates and class times use the device's local time zone. The calendar applies the stated Sunday and 1st/3rd Saturday holiday rule throughout the year.

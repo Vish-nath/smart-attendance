@@ -1,0 +1,20 @@
+{
+  "id": "./Smart%20Attendance%20and%20Shortage%20Predictor.html",
+  "name": "Classmate · Student Attendance",
+  "short_name": "Classmate",
+  "description": "A private, offline-first student timetable and attendance tracker.",
+  "start_url": "./Smart%20Attendance%20and%20Shortage%20Predictor.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f6f7fb",
+  "theme_color": "#f6f7fb",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
