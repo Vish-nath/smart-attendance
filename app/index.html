@@ -1025,35 +1025,45 @@
       }
 
       function exportBackup() {
-        const file = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const content = JSON.stringify(data, null, 2);
+        const fileName = `classmate-backup-${todayKey()}.json`;
+        if (window.ClassmateNative) {
+          window.ClassmateNative.postMessage(JSON.stringify({ action: "export", fileName, content }));
+          return;
+        }
+        const file = new Blob([content], { type: "application/json" });
         const url = URL.createObjectURL(file);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `classmate-backup-${todayKey()}.json`;
+        link.download = fileName;
         link.click();
         URL.revokeObjectURL(url);
         showToast("Attendance backup downloaded.");
       }
 
+      function importBackupContent(content) {
+        try {
+          const imported = JSON.parse(content);
+          if (!validData(imported)) throw new Error("The selected file is not a valid Classmate backup.");
+          const previous = data;
+          data = imported;
+          if (!saveData()) {
+            data = previous;
+            return;
+          }
+          render();
+          showToast("Backup imported. Your local attendance data has been updated.");
+        } catch (error) {
+          showToast(`Could not import this backup: ${error.message}`, true);
+        }
+      }
+
+      window.classmateImportBackup = importBackupContent;
+
       function importBackup(file) {
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = () => {
-          try {
-            const imported = JSON.parse(String(reader.result));
-            if (!validData(imported)) throw new Error("The selected file is not a valid Classmate backup.");
-            const previous = data;
-            data = imported;
-            if (!saveData()) {
-              data = previous;
-              return;
-            }
-            render();
-            showToast("Backup imported. Your local attendance data has been updated.");
-          } catch (error) {
-            showToast(`Could not import this backup: ${error.message}`, true);
-          }
-        };
+        reader.onload = () => importBackupContent(String(reader.result));
         reader.onerror = () => showToast(`Could not read the backup file: ${reader.error?.message || "unknown file error"}`, true);
         reader.readAsText(file);
       }
@@ -1113,7 +1123,8 @@
         } else if (action === "export") {
           exportBackup();
         } else if (action === "import") {
-          $("#import-file").click();
+          if (window.ClassmateNative) window.ClassmateNative.postMessage(JSON.stringify({ action: "import" }));
+          else $("#import-file").click();
         } else if (action === "install" && installPrompt) {
           installPrompt.prompt().then((result) => {
             if (result.outcome === "accepted") showToast("Classmate installation started.");

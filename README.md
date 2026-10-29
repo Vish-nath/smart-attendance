@@ -22,7 +22,9 @@ The app also works from an HTTPS static host. It does not send attendance data t
 - `service-worker.js` configures offline caching.
 - `index.html` preserves the simple site-root entry point by redirecting to the app.
 
-This repository provides one responsive, installable web app (PWA), not separate native Android or macOS projects. Install availability and notification behavior depend on the browser and operating-system version.
+The repository includes both the responsive web app (PWA) and a Flutter Android wrapper in `mobile/`. The Android app bundles the same interface for offline use. Browser install availability and notification behavior depend on the browser and operating-system version.
+
+To build a local Android release APK, install Flutter and the Android SDK, then run `flutter pub get` and `flutter build apk --release` from `mobile/`. The output is `mobile/build/app/outputs/flutter-apk/app-release.apk`. The local release build is debug-signed for device testing; Google Play distribution requires your own upload key.
 
 ## Timetable and attendance
 
