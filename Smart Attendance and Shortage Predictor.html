@@ -878,7 +878,7 @@
       function extraSlots(date, preferredSlot = null) {
         const occupied = new Set(getClasses(date).filter((item) => item.status !== "cancelled").map((item) => item.slot));
         const choices = PERIODS.map((period, slot) => ({ period, slot }))
-          .filter(({ slot }) => !occupied.has(slot) || (preferredSlot !== null && slot === preferredSlot && !occupied.has(slot)));
+          .filter(({ slot }) => !occupied.has(slot));
         const select = $("#extra-slot");
         select.innerHTML = choices.map(({ period, slot }) =>
           `<option value="${slot}">${period.start}–${period.end}${preferredSlot === slot ? " · current class time" : ""}</option>`
