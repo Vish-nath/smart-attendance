@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f6f7fb">
   <meta name="description" content="A private, offline-first student timetable and attendance tracker.">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
   <title>Classmate · Student attendance</title>
   <style>
     :root {
@@ -967,7 +967,7 @@
         const title = phase === "finished" ? "Class finished · update attendance" : phase === "now" ? "Your class is starting" : "Class in 10 minutes";
         const options = {
           body: `${item.subject} · ${periodLabel(item.slot)}`,
-          icon: "./icon.svg",
+          icon: "../assets/icon.svg",
           tag: key,
           data: { id: item.id, date: todayKey(), slot: item.slot, subject: item.subject, phase },
           actions: phase === "finished"
@@ -1130,7 +1130,7 @@
 
       function registerServiceWorker() {
         if (!("serviceWorker" in navigator) || !["https:", "http:"].includes(location.protocol)) return;
-        navigator.serviceWorker.register("./service-worker.js").then((registration) => {
+        navigator.serviceWorker.register("../service-worker.js").then((registration) => {
           serviceWorkerRegistration = registration;
         }).catch((error) => {
           showToast(`Offline app setup failed: ${error.message}`, true);

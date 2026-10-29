@@ -1,11 +1,11 @@
 "use strict";
 
-const CACHE_NAME = "classmate-shell-v2";
-const APP_PATH = "Smart%20Attendance%20and%20Shortage%20Predictor.html";
+const CACHE_NAME = "classmate-shell-v6";
+const APP_PATH = "app/index.html";
 const ASSETS = [
   `./${APP_PATH}`,
-  "./manifest.webmanifest",
-  "./icon.svg"
+  "./app/manifest.webmanifest",
+  "./assets/icon.svg"
 ];
 
 self.addEventListener("install", (event) => {
@@ -29,14 +29,16 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith(
-    caches.match(event.request, { ignoreSearch: true })
-      .then((cached) => cached || fetch(event.request).then((response) => {
-        if (response.ok && new URL(event.request.url).origin === self.location.origin) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        }
-        return response;
-      }))
+    fetch(event.request).then((response) => {
+      if (response.ok) {
+        const copy = response.clone();
+        event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)));
+      }
+      return response;
+    }).catch((error) => caches.match(event.request, { ignoreSearch: true }).then((cached) => {
+      if (cached) return cached;
+      throw error;
+    }))
   );
 });
 
