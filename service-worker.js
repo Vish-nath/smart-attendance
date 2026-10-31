@@ -1,11 +1,13 @@
 "use strict";
 
-const CACHE_NAME = "classmate-shell-v6";
+const CACHE_NAME = "classmate-shell-v7";
 const APP_PATH = "app/index.html";
 const ASSETS = [
   `./${APP_PATH}`,
   "./app/manifest.webmanifest",
-  "./assets/icon.svg"
+  "./assets/icon-192.png",
+  "./assets/icon-512.png",
+  "./assets/icon-maskable-512.png"
 ];
 
 self.addEventListener("install", (event) => {

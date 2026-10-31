@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f6f7fb">
   <meta name="description" content="A private, offline-first student timetable and attendance tracker.">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="../assets/icon-192.png" type="image/png">
   <title>Classmate · Student attendance</title>
   <style>
     :root {
@@ -80,11 +80,15 @@
       font-size: 14px;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
+      transition: background-color .25s ease, color .25s ease;
+    }
+    .card, .button, .icon-button, .nav-link, .alert-card, .calendar-day, dialog {
+      transition: background-color .25s ease, color .25s ease, border-color .25s ease;
     }
     button, input, select { font: inherit; }
     button { color: inherit; }
     a { color: inherit; }
-    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+    button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
       outline: 3px solid color-mix(in srgb, var(--brand) 38%, transparent);
       outline-offset: 2px;
     }
@@ -134,8 +138,14 @@
     .nav-badge { margin-left: auto; color: var(--brand); font-size: 11px; }
     .sidebar-note { margin-top: auto; padding: 14px 12px; border: 1px solid var(--line); border-radius: 13px; color: var(--muted); font-size: 12px; }
     .sidebar-note strong { display: block; margin-bottom: 4px; color: var(--ink); font-size: 12px; }
-    main { width: min(1120px, calc(100% - 246px)); margin-left: 246px; padding: 34px clamp(22px, 4vw, 54px) 60px; }
-    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 24px clamp(22px, 4vw, 54px) 60px; }
+    .topbar { display: grid; gap: 17px; margin-bottom: 26px; }
+    .topbar-main { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .top-nav { display: flex; min-width: 0; gap: 5px; overflow-x: auto; padding: 0 0 10px; border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+    .top-nav .nav-link { min-height: 40px; flex: 0 0 auto; padding: 0 13px; }
+    .theme-toggle { min-width: 40px; padding: 8px; overflow: hidden; }
+    .theme-toggle span { display: inline-block; font-size: 16px; transition: transform .3s ease; }
+    .theme-toggle:active span { transform: rotate(45deg) scale(.8); }
     .eyebrow { color: var(--muted); font-size: 12px; font-weight: 600; }
     h1 { margin: 2px 0 0; font-size: clamp(24px, 3vw, 31px); letter-spacing: -.045em; line-height: 1.2; }
     h2 { margin: 0; font-size: 16px; letter-spacing: -.025em; }
@@ -223,7 +233,7 @@
     .subject-advice { margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
     .date-toolbar, .month-toolbar, .day-tabs { display: flex; align-items: center; gap: 8px; }
     .date-toolbar { justify-content: space-between; margin-bottom: 15px; }
-    input[type="date"], input[type="text"], select {
+    input[type="date"], input[type="text"], input[type="email"], textarea, select {
       min-height: 39px;
       width: 100%;
       padding: 8px 11px;
@@ -232,7 +242,8 @@
       background: var(--surface);
       color: var(--ink);
     }
-    input::placeholder { color: var(--muted); opacity: .8; }
+    input::placeholder, textarea::placeholder { color: var(--muted); opacity: .8; }
+    textarea { resize: vertical; }
     .date-input { width: auto !important; min-width: 145px; }
     .day-tabs { overflow-x: auto; margin-bottom: 15px; padding-bottom: 2px; }
     .day-tab {
@@ -284,6 +295,8 @@
     .calendar-day.today { border-color: var(--brand); }
     .calendar-day.selected { background: var(--brand-soft); color: var(--brand); }
     .calendar-day.holiday { color: var(--muted); }
+    .calendar-day.full-attendance { border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); }
+    .day-fire { color: var(--amber); font-size: 13px; line-height: 1; }
     .day-dot { min-height: 13px; color: var(--muted); font-size: 9px; line-height: 1.2; }
     .day-dot.has-classes { color: var(--brand); }
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 15px; color: var(--muted); font-size: 10px; }
@@ -297,6 +310,7 @@
     .alert-symbol { font-size: 16px; }
     .alert-body { min-width: 0; flex: 1; }
     .alert-body p { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    .global-class-alert { margin-bottom: 15px; }
     .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 13px 0; border-top: 1px solid var(--line); }
     .settings-row:first-child { border-top: 0; padding-top: 0; }
     .settings-row strong { display: block; font-size: 12px; }
@@ -332,24 +346,31 @@
     .field { display: grid; gap: 6px; margin-bottom: 13px; }
     .field label { font-size: 11px; font-weight: 700; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+    #report-status:empty { display: none; }
+    .celebration-content { text-align: center; }
+    .celebration-content .dialog-actions { justify-content: center; }
+    .celebration-mark { margin-bottom: 8px; font-size: 48px; animation: celebrate-pop .55s cubic-bezier(.2, 1.4, .45, 1) both; }
+    @keyframes celebrate-pop { from { opacity: 0; transform: scale(.35) rotate(-20deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
+    dialog[open] { animation: dialog-enter .22s ease-out both; }
+    @keyframes dialog-enter { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
     .fatal { max-width: 660px; margin: 8vh auto; padding: 24px; border: 1px solid var(--red); border-radius: 16px; background: var(--surface); }
     .fatal h1 { color: var(--red); font-size: 21px; }
     .fatal p { margin-top: 10px; color: var(--muted); }
-    .mobile-nav { display: none; }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
     @media (max-width: 900px) {
-      .sidebar { width: 210px; }
-      main { width: calc(100% - 210px); margin-left: 210px; padding-right: 24px; padding-left: 24px; }
       .span-8, .span-7, .span-6, .span-5 { grid-column: span 12; }
       .span-4 { grid-column: span 6; }
     }
     @media (max-width: 650px) {
-      .sidebar { display: none; }
-      main { width: 100%; margin: 0; padding: 24px 16px calc(92px + env(safe-area-inset-bottom, 0)); }
-      .topbar { align-items: flex-start; margin-bottom: 22px; }
-      .top-actions { flex-direction: column-reverse; align-items: flex-end; gap: 4px; }
+      main { width: 100%; padding: 18px 16px 40px; }
+      .topbar { gap: 12px; margin-bottom: 20px; }
+      .topbar-main { align-items: flex-start; }
+      .top-actions { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
       .today-label { font-size: 10px; }
       .top-actions .button { min-height: 34px; padding: 6px 9px; }
+      .top-actions .today-label { display: none; }
+      .top-nav { margin-right: -16px; padding-right: 16px; }
+      .top-nav .nav-link { min-height: 38px; padding: 0 11px; font-size: 11px; }
       .span-4 { grid-column: span 12; }
       .card { padding: 15px; border-radius: 14px; }
       .summary-card { min-height: 132px; }
@@ -358,21 +379,7 @@
       .class-row { flex-wrap: wrap; }
       .class-actions { width: 100%; justify-content: flex-start; padding-left: 0; }
       .calendar-day { min-height: 54px; }
-      .mobile-nav {
-        position: fixed;
-        z-index: 10;
-        inset: auto 0 0;
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        padding: 7px 6px calc(7px + env(safe-area-inset-bottom, 0));
-        border-top: 1px solid var(--line);
-        background: color-mix(in srgb, var(--surface) 94%, transparent);
-        backdrop-filter: blur(12px);
-      }
-      .mobile-nav .nav-link { min-height: 52px; flex-direction: column; justify-content: center; gap: 1px; padding: 3px 1px; border-radius: 9px; font-size: 9px; }
-      .mobile-nav .nav-icon { font-size: 16px; }
-      .mobile-nav .nav-badge { display: none; }
-      .toast { right: 12px; bottom: calc(80px + env(safe-area-inset-bottom, 0)); left: 12px; max-width: none; }
+      .toast { right: 12px; bottom: calc(16px + env(safe-area-inset-bottom, 0)); left: 12px; max-width: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
@@ -381,17 +388,20 @@
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar" aria-label="Main navigation">
-      <div class="brand"><span class="brand-mark" aria-hidden="true">C</span><div><div class="brand-name">Classmate</div><span class="brand-caption">Your own attendance space</span></div></div>
-      <div class="nav-label">Workspace</div>
-      <nav class="nav-list" id="desktop-nav"></nav>
-      <div class="sidebar-note"><strong>Private by design</strong>Your timetable and attendance stay on this device. No account or college connection.</div>
-    </aside>
     <main>
       <header class="topbar">
-        <div><div class="eyebrow" id="eyebrow">YOUR STUDENT SPACE</div><h1 id="page-title">Dashboard</h1></div>
-        <div class="top-actions"><span class="today-label" id="today-label"></span><button class="button soft" type="button" data-action="extra-open">＋ Extra class</button></div>
+        <div class="topbar-main">
+          <div><div class="eyebrow" id="eyebrow">YOUR STUDENT SPACE</div><h1 id="page-title">Dashboard</h1></div>
+          <div class="top-actions">
+            <span class="today-label" id="today-label"></span>
+            <button class="button soft" type="button" data-action="extra-open">＋ Extra class</button>
+            <button class="button" type="button" data-action="report-open">✉ Report a bug</button>
+            <button class="icon-button theme-toggle" type="button" data-action="theme-toggle" aria-label="Switch to dark theme" title="Switch to dark theme"><span aria-hidden="true">☾</span></button>
+          </div>
+        </div>
+        <nav class="top-nav" id="top-nav" aria-label="Main navigation"></nav>
       </header>
+      <div id="global-class-alert" hidden></div>
       <div id="storage-error" class="fatal" hidden></div>
       <section class="page" id="dashboard"></section>
       <section class="page" id="attendance"></section>
@@ -399,7 +409,6 @@
       <section class="page" id="calendar"></section>
       <section class="page" id="alerts"></section>
     </main>
-    <nav class="mobile-nav" id="mobile-nav" aria-label="Main navigation"></nav>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="extra-dialog" aria-labelledby="extra-title">
@@ -412,6 +421,32 @@
       <div class="dialog-actions"><button class="button" type="button" data-action="extra-close">Cancel</button><button class="button primary" type="submit">Save extra class</button></div>
     </form>
   </dialog>
+  <dialog id="report-dialog" aria-labelledby="report-title">
+    <form class="dialog-content" id="report-form" action="https://formspree.io/f/mvkkwkkj" method="post">
+      <h2 id="report-title">Report a bug</h2>
+      <p>Describe what went wrong. Your report will be sent to the app maintainer.</p>
+      <div class="field"><label for="report-email">Your email (optional)</label><input id="report-email" name="email" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com"></div>
+      <div class="field"><label for="report-message">What happened?</label><textarea id="report-message" name="message" rows="5" maxlength="3000" required placeholder="Steps to reproduce the issue and what you expected to happen"></textarea></div>
+      <div class="dialog-actions"><button class="button" type="button" data-action="report-close">Cancel</button><button class="button primary" id="report-submit" type="submit">Send report</button></div>
+      <p class="hint" id="report-status" role="status" aria-live="polite"></p>
+    </form>
+  </dialog>
+  <dialog id="attendance-warning-dialog" aria-labelledby="attendance-warning-title">
+    <div class="dialog-content">
+      <h2 id="attendance-warning-title">Attendance needs attention</h2>
+      <p>These subjects are below the 85% attendance warning threshold:</p>
+      <div id="attendance-warning-list"></div>
+      <div class="dialog-actions"><button class="button primary" type="button" data-action="warning-close">Got it</button></div>
+    </div>
+  </dialog>
+  <dialog id="celebration-dialog" aria-labelledby="celebration-title">
+    <div class="dialog-content celebration-content">
+      <div class="celebration-mark" aria-hidden="true">🎉</div>
+      <h2 id="celebration-title">Yay! Full day attendance!</h2>
+      <p id="celebration-message">You attended every class today. Keep up the great work!</p>
+      <div class="dialog-actions"><button class="button primary" type="button" data-action="celebration-close">Awesome!</button></div>
+    </div>
+  </dialog>
   <input id="import-file" class="sr-only" type="file" accept="application/json,.json">
   <script>
     (() => {
@@ -419,6 +454,9 @@
 
       const STORAGE_KEY = "classmate.student-data.v1";
       const THRESHOLD = 75;
+      const REMINDER_THRESHOLD = 85;
+      const THEME_KEY = "classmate.theme.v1";
+      const REPORT_ENDPOINT = "https://formspree.io/f/mvkkwkkj";
       const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
       const SHORT_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
       const PERIODS = [
@@ -473,6 +511,58 @@
       let serviceWorkerRegistration = null;
       let installPrompt = null;
       let toastTimer;
+
+      function currentTheme() {
+        return document.documentElement.dataset.theme ||
+          (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      }
+
+      function updateThemeButton() {
+        const button = $(".theme-toggle");
+        if (!button) return;
+        const dark = currentTheme() === "dark";
+        const label = `Switch to ${dark ? "light" : "dark"} theme`;
+        button.setAttribute("aria-label", label);
+        button.title = label;
+        button.querySelector("span").textContent = dark ? "☀" : "☾";
+        $('meta[name="theme-color"]').content = dark ? "#111522" : "#f6f7fb";
+      }
+
+      function setTheme(theme) {
+        document.documentElement.dataset.theme = theme;
+        updateThemeButton();
+        try {
+          localStorage.setItem(THEME_KEY, theme);
+        } catch (error) {
+          showToast(`Could not save your theme preference: ${error.message}`, true);
+        }
+      }
+
+      function loadTheme() {
+        try {
+          const saved = localStorage.getItem(THEME_KEY);
+          if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
+        } catch (error) {
+          showToast(`Could not read your theme preference: ${error.message}`, true);
+        }
+        updateThemeButton();
+      }
+
+      function showAttendanceWarning() {
+        const risks = subjectStats().filter((item) => item.percent !== null && item.percent < REMINDER_THRESHOLD);
+        if (!risks.length) return;
+        $("#attendance-warning-list").innerHTML = risks.map((item) =>
+          `<article class="alert-card danger"><span class="alert-symbol">!</span><div class="alert-body"><h3>${esc(item.subject)}</h3><p>Current attendance is ${item.percent.toFixed(1)}%; the warning threshold is ${REMINDER_THRESHOLD}%.</p></div></article>`
+        ).join("");
+        $("#attendance-warning-dialog").showModal();
+      }
+
+      function showFullDayCelebration(date) {
+        $("#celebration-message").textContent = date === todayKey()
+          ? "You attended every class today. Keep up the great work!"
+          : `You attended every class on ${humanDate(date)}. Keep up the great work!`;
+        $("#celebration-dialog").showModal();
+      }
 
       function validData(value) {
         return value && value.version === 1 &&
@@ -549,6 +639,12 @@
           .filter(([id, record]) => record.date === date && id.startsWith(`class:${date}:`) && !knownIds.has(id))
           .map(([id, record]) => ({ id, slot: record.slot, subject: record.subject, extra: false, status: record.status }));
         return [...scheduled, ...extras, ...savedClasses].sort((a, b) => a.slot - b.slot || Number(a.extra) - Number(b.extra));
+      }
+
+      function hasFullAttendance(date) {
+        const classes = getClasses(date);
+        const heldClasses = classes.filter((item) => item.status !== "cancelled");
+        return heldClasses.length > 0 && heldClasses.every((item) => item.status === "present");
       }
 
       function allSubjects() {
@@ -737,22 +833,25 @@
           const key = dateKey(date);
           const inMonth = date.getMonth() === month;
           const holiday = isHoliday(key);
-          const classCount = getClasses(key).length;
+          const classesOnDate = getClasses(key);
+          const classCount = classesOnDate.length;
           const active = classCount > 0;
+          const fullAttendance = hasFullAttendance(key);
           const classes = ["calendar-day"];
           if (!inMonth) classes.push("muted");
           if (key === todayKey()) classes.push("today");
           if (key === selectedDate) classes.push("selected");
           if (holiday) classes.push("holiday");
-          cells.push(`<button class="${classes.join(" ")}" type="button" data-action="select-date" data-date="${key}" aria-label="${esc(humanDate(key))}${holiday ? ", holiday" : ""}${active ? `, ${classCount} classes` : ""}" aria-pressed="${key === selectedDate}">
-            <span>${date.getDate()}</span><span class="day-dot ${active ? "has-classes" : ""}">${holiday ? "Holiday" : active ? `${classCount} class${classCount === 1 ? "" : "es"}` : "&nbsp;"}</span>
+          if (fullAttendance) classes.push("full-attendance");
+          cells.push(`<button class="${classes.join(" ")}" type="button" data-action="select-date" data-date="${key}" aria-label="${esc(humanDate(key))}${holiday ? ", holiday" : ""}${active ? `, ${classCount} classes` : ""}${fullAttendance ? ", full attendance" : ""}" aria-pressed="${key === selectedDate}">
+            <span>${date.getDate()}</span><span class="day-dot ${active ? "has-classes" : ""}">${fullAttendance ? '<span class="day-fire" title="Full attendance" aria-hidden="true">🔥</span>' : holiday ? "Holiday" : active ? `${classCount} class${classCount === 1 ? "" : "es"}` : "&nbsp;"}</span>
           </button>`);
         }
         const weekdayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => `<div class="calendar-weekday">${day}</div>`).join("");
         return `<section class="card calendar-card">
           <div class="month-toolbar"><button class="icon-button" type="button" data-action="month-shift" data-shift="-1" aria-label="Previous month">‹</button><div class="month-title">${calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</div><button class="icon-button" type="button" data-action="month-shift" data-shift="1" aria-label="Next month">›</button></div>
           <div class="calendar-grid">${weekdayHeaders}${cells.join("")}</div>
-          <div class="legend"><span><i class="legend-dot"></i> Classes scheduled</span><span><i class="legend-dot holiday-dot"></i> Weekly holiday</span></div>
+          <div class="legend"><span><i class="legend-dot"></i> Classes scheduled</span><span><i class="legend-dot holiday-dot"></i> Weekly holiday</span><span>🔥 Full attendance</span></div>
           <div class="calendar-selection"><div class="card-head"><div><h2>${esc(humanDate(selectedDate))}</h2><p class="card-subtitle">${isHoliday(selectedDate) ? "Weekly holiday" : `${getClasses(selectedDate).length} class${getClasses(selectedDate).length === 1 ? "" : "es"} scheduled`}</p></div><a class="button small soft" href="#attendance">Attendance</a></div>
             ${getClasses(selectedDate).length ? `<div class="class-list">${getClasses(selectedDate).map((item) => classRow(item, selectedDate, "calendar")).join("")}</div>` : emptyState("No classes for this date", isHoliday(selectedDate) ? "This is a Sunday or a 1st/3rd Saturday." : "There are no subjects assigned to this weekday.")}</div>
         </section>`;
@@ -765,34 +864,42 @@
       function reminderPrompts() {
         const nowDate = new Date();
         const minutesNow = nowDate.getHours() * 60 + nowDate.getMinutes();
+        const stats = subjectStats();
         return getClasses(todayKey()).flatMap((item) => {
           if (item.status) return [];
+          const attendance = stats.find((subject) => subject.subject === item.subject);
+          const attendanceWarning = attendance?.percent !== null && attendance?.percent < REMINDER_THRESHOLD
+            ? attendance.percent
+            : null;
           const start = PERIODS[item.slot].start.split(":").map(Number);
           const end = PERIODS[item.slot].end.split(":").map(Number);
           const startMinutes = start[0] * 60 + start[1];
           const endMinutes = end[0] * 60 + end[1];
-          if (minutesNow >= startMinutes && minutesNow < endMinutes) return [{ ...item, phase: "now", message: "This class is in progress." }];
-          if (minutesNow >= endMinutes) return [{ ...item, phase: "finished", message: "Mark this class as present or absent." }];
-          if (startMinutes - minutesNow <= 10) return [{ ...item, phase: "soon", message: "This class starts in 10 minutes or less." }];
+          const warningMessage = attendanceWarning === null ? "" : `Attendance alert: ${attendanceWarning.toFixed(1)}%, below the ${REMINDER_THRESHOLD}% warning threshold.`;
+          if (minutesNow >= startMinutes && minutesNow < endMinutes) return [{ ...item, phase: "now", attendanceWarning, message: warningMessage || "This class is in progress." }];
+          if (minutesNow >= endMinutes) return [{ ...item, phase: "finished", attendanceWarning, message: warningMessage || "Mark this class as present or absent." }];
+          if (startMinutes - minutesNow <= 10) return [{ ...item, phase: "soon", attendanceWarning, minutesUntilStart: startMinutes - minutesNow, message: warningMessage || "This class starts in 10 minutes or less." }];
           return [];
         });
       }
 
       function promptCard(item) {
-        const title = item.phase === "soon" ? "Class starting soon" : item.phase === "now" ? "Class in progress" : "Class just finished";
+        const title = item.attendanceWarning !== null
+          ? `Attendance alert · ${item.phase === "soon" ? "class starting soon" : item.phase === "now" ? "class in progress" : "class just finished"}`
+          : item.phase === "soon" ? "Class starting soon" : item.phase === "now" ? "Class in progress" : "Class just finished";
         const actions = item.phase === "finished"
           ? `<button class="button small good" type="button" data-action="mark" data-id="${esc(item.id)}" data-date="${todayKey()}" data-status="present">Present</button><button class="button small danger" type="button" data-action="mark" data-id="${esc(item.id)}" data-date="${todayKey()}" data-status="absent">Absent</button>`
           : `<button class="button small" type="button" data-action="mark" data-id="${esc(item.id)}" data-date="${todayKey()}" data-status="cancelled">Class cancelled</button><button class="button small soft" type="button" data-action="extra-open" data-date="${todayKey()}" data-slot="${item.slot}">Extra class</button>`;
-        return `<article class="alert-card ${item.phase === "finished" ? "warning" : ""}"><span class="alert-symbol">${item.phase === "finished" ? "✓" : "◷"}</span><div class="alert-body"><h3>${title} · ${esc(item.subject)}</h3><p>${item.message} ${periodLabel(item.slot)}.</p><div class="class-actions" style="justify-content:flex-start;margin-top:9px">${actions}</div></div></article>`;
+        return `<article class="alert-card ${item.attendanceWarning !== null ? "danger" : item.phase === "finished" ? "warning" : ""}"><span class="alert-symbol">${item.attendanceWarning !== null ? "!" : item.phase === "finished" ? "✓" : "◷"}</span><div class="alert-body"><h3>${title} · ${esc(item.subject)}</h3><p>${item.message} ${periodLabel(item.slot)}.</p><div class="class-actions" style="justify-content:flex-start;margin-top:9px">${actions}</div></div></article>`;
       }
 
       function alertsPage() {
         const prompts = reminderPrompts();
-        const risks = subjectStats().filter((item) => item.state === "danger");
+        const risks = subjectStats().filter((item) => item.percent !== null && item.percent < REMINDER_THRESHOLD);
         const holiday = isHoliday(todayKey());
         const alerts = [
-          ...prompts.map((item) => `<article class="alert-card ${item.phase === "finished" ? "warning" : ""}"><span class="alert-symbol">${item.phase === "finished" ? "✓" : "◷"}</span><div class="alert-body"><h3>${item.phase === "soon" ? "Class starting soon" : item.phase === "now" ? "Class in progress" : "Attendance update needed"} · ${esc(item.subject)}</h3><p>${item.message} Today, ${periodLabel(item.slot)}.</p><div class="class-actions" style="justify-content:flex-start;margin-top:9px">${promptCard(item).match(/<div class="class-actions"[^>]*>([\s\S]*?)<\/div>/)?.[1] || ""}</div></div></article>`),
-          ...risks.map((item) => `<article class="alert-card danger"><span class="alert-symbol">!</span><div class="alert-body"><h3>${esc(item.subject)} is below ${THRESHOLD}%</h3><p>Current attendance is ${item.percent.toFixed(1)}%. Attend the next ${item.needed} class${item.needed === 1 ? "" : "es"} to reach your goal.</p></div><span class="status-pill danger">${item.percent.toFixed(0)}%</span></article>`)
+          ...prompts.map((item) => `<article class="alert-card ${item.attendanceWarning !== null ? "danger" : item.phase === "finished" ? "warning" : ""}"><span class="alert-symbol">${item.attendanceWarning !== null ? "!" : item.phase === "finished" ? "✓" : "◷"}</span><div class="alert-body"><h3>${item.attendanceWarning !== null ? "Attendance alert" : item.phase === "soon" ? "Class starting soon" : item.phase === "now" ? "Class in progress" : "Attendance update needed"} · ${esc(item.subject)}</h3><p>${item.message} Today, ${periodLabel(item.slot)}.</p><div class="class-actions" style="justify-content:flex-start;margin-top:9px">${promptCard(item).match(/<div class="class-actions"[^>]*>([\s\S]*?)<\/div>/)?.[1] || ""}</div></div></article>`),
+          ...risks.map((item) => `<article class="alert-card danger"><span class="alert-symbol">!</span><div class="alert-body"><h3>${esc(item.subject)} is below ${REMINDER_THRESHOLD}%</h3><p>Current attendance is ${item.percent.toFixed(1)}%. Attend this subject's upcoming classes to raise attendance toward your target.</p></div><span class="status-pill danger">${item.percent.toFixed(0)}%</span></article>`)
         ];
         if (holiday) alerts.push('<article class="alert-card"><span class="alert-symbol">☀</span><div class="alert-body"><h3>Today is a weekly holiday</h3><p>Sundays and the 1st and 3rd Saturdays are holidays. Extra classes can still be added.</p></div></article>');
         const permission = "Notification" in window ? Notification.permission : "unsupported";
@@ -821,8 +928,7 @@
       }
 
       function render() {
-        $("#desktop-nav").innerHTML = navigationHtml();
-        $("#mobile-nav").innerHTML = navigationHtml();
+        $("#top-nav").innerHTML = navigationHtml();
         const pages = {
           dashboard: ["Dashboard", dashboardPage],
           attendance: ["Attendance", attendancePage],
@@ -832,6 +938,15 @@
         };
         const pageId = (location.hash || "#dashboard").slice(1);
         const activeId = pages[pageId] ? pageId : "dashboard";
+        const upcomingWarnings = activeId === "dashboard" || activeId === "alerts"
+          ? []
+          : reminderPrompts().filter((item) => item.phase === "soon" && item.attendanceWarning !== null);
+        const globalClassAlert = $("#global-class-alert");
+        globalClassAlert.innerHTML = upcomingWarnings.map((item) => {
+          const minutes = item.minutesUntilStart;
+          return `<article class="alert-card danger global-class-alert"><span class="alert-symbol">!</span><div class="alert-body"><h3>${esc(item.subject)} is below ${REMINDER_THRESHOLD}% · class starts soon</h3><p>Attendance is ${item.attendanceWarning.toFixed(1)}%. Class begins at ${PERIODS[item.slot].start}${minutes > 0 ? ` (in ${minutes} minute${minutes === 1 ? "" : "s"})` : ""}.</p></div><a class="button small danger" href="#attendance">Update</a></article>`;
+        }).join("");
+        globalClassAlert.hidden = upcomingWarnings.length === 0;
         Object.entries(pages).forEach(([id, [title, draw]]) => {
           const page = $(`#${id}`);
           page.innerHTML = draw();
@@ -840,7 +955,7 @@
         });
         $("#eyebrow").textContent = activeId === "dashboard" ? "YOUR STUDENT SPACE" : "YOUR STUDENT SPACE · " + pages[activeId][0].toUpperCase();
         $("#today-label").textContent = humanDate(todayKey(), { weekday: "short", month: "short", day: "numeric" });
-        $$("#desktop-nav a, #mobile-nav a").forEach((link) => {
+        $$("#top-nav a").forEach((link) => {
           if (link.dataset.page === activeId) link.setAttribute("aria-current", "page");
           else link.removeAttribute("aria-current");
         });
@@ -857,18 +972,23 @@
       }
 
       function setAttendance(id, date, subject, slot, status, extra = false) {
+        const wasFullAttendance = hasFullAttendance(date);
         data.attendance[id] = { date, subject, slot, status, extra };
         if (!saveData()) return;
         render();
         checkReminders(false);
         showToast(status === "cancelled" ? "Class cancelled. It won't count as an absence." : `Marked ${status}. Attendance updated.`);
+        if (!wasFullAttendance && status === "present" && hasFullAttendance(date)) showFullDayCelebration(date);
       }
 
       function clearAttendance(id) {
+        const date = data.attendance[id]?.date;
+        const wasFullAttendance = date ? hasFullAttendance(date) : false;
         delete data.attendance[id];
         if (!saveData()) return;
         render();
         showToast("Cancellation undone.");
+        if (date && !wasFullAttendance && hasFullAttendance(date)) showFullDayCelebration(date);
       }
 
       function findClass(id, date) {
@@ -964,10 +1084,14 @@
         if (data.notified[key]) return;
         data.notified[key] = Date.now();
         if (!saveData()) return;
-        const title = phase === "finished" ? "Class finished · update attendance" : phase === "now" ? "Your class is starting" : "Class in 10 minutes";
+        const title = item.attendanceWarning !== null
+          ? `Attendance alert · ${item.subject}`
+          : phase === "finished" ? "Class finished · update attendance" : phase === "now" ? "Your class is starting" : "Class in 10 minutes";
         const options = {
-          body: `${item.subject} · ${periodLabel(item.slot)}`,
-          icon: "../assets/icon.svg",
+          body: item.attendanceWarning !== null
+            ? `${item.attendanceWarning.toFixed(1)}% attendance (below ${REMINDER_THRESHOLD}%). Class ${periodLabel(item.slot)}.`
+            : `${item.subject} · ${periodLabel(item.slot)}`,
+          icon: "../assets/icon-192.png",
           tag: key,
           data: { id: item.id, date: todayKey(), slot: item.slot, subject: item.subject, phase },
           actions: phase === "finished"
@@ -1041,6 +1165,40 @@
         showToast("Attendance backup downloaded.");
       }
 
+      async function submitBugReport(form) {
+        const submitButton = $("#report-submit");
+        const status = $("#report-status");
+        const formData = new FormData(form);
+        formData.set("_subject", "Classmate bug report");
+        submitButton.disabled = true;
+        status.textContent = "Sending your report…";
+        try {
+          const response = await fetch(REPORT_ENDPOINT, {
+            method: "POST",
+            headers: { Accept: "application/json" },
+            body: formData
+          });
+          if (!response.ok) {
+            let detail = `Formspree returned status ${response.status}.`;
+            try {
+              const result = await response.json();
+              if (Array.isArray(result.errors) && result.errors.length) {
+                detail = result.errors.map((item) => item.message).join(" ");
+              }
+            } catch (error) {
+              if (!(error instanceof SyntaxError)) throw error;
+            }
+            throw new Error(detail);
+          }
+          status.textContent = "Thanks! Your bug report was sent.";
+          form.reset();
+        } catch (error) {
+          status.textContent = `Could not send your report: ${error.message}`;
+        } finally {
+          submitButton.disabled = false;
+        }
+      }
+
       function importBackupContent(content) {
         try {
           const imported = JSON.parse(content);
@@ -1089,7 +1247,19 @@
 
       function handleAction(button) {
         const action = button.dataset.action;
-        if (action === "select-weekday") {
+        if (action === "theme-toggle") {
+          setTheme(currentTheme() === "dark" ? "light" : "dark");
+        } else if (action === "report-open") {
+          $("#report-status").textContent = "";
+          $("#report-dialog").showModal();
+          $("#report-message").focus();
+        } else if (action === "report-close") {
+          $("#report-dialog").close();
+        } else if (action === "warning-close") {
+          $("#attendance-warning-dialog").close();
+        } else if (action === "celebration-close") {
+          $("#celebration-dialog").close();
+        } else if (action === "select-weekday") {
           selectedDay = Number(button.dataset.day);
           render();
         } else if (action === "save-slot") {
@@ -1199,6 +1369,11 @@
         }
       });
       document.addEventListener("submit", (event) => {
+        if (event.target.id === "report-form") {
+          event.preventDefault();
+          submitBugReport(event.target);
+          return;
+        }
         if (event.target.id !== "extra-form") return;
         event.preventDefault();
         const formData = new FormData(event.target);
@@ -1224,7 +1399,9 @@
       });
 
       data = loadData();
+      loadTheme();
       render();
+      showAttendanceWarning();
       registerServiceWorker();
       checkReminders(false);
       window.setInterval(() => checkReminders(), 30 * 1000);

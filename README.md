@@ -2,6 +2,8 @@
 
 Classmate is a student-only, local-first timetable and attendance tracker. It has no sign-in, backend, teacher tools, or cloud sync. Timetable entries, attendance updates, reminders, and backups are stored in the browser on the device.
 
+The app also supports an animated light/dark theme, a top navigation bar, full-day attendance celebrations, and 85% attendance warnings. Voluntary bug reports are sent to the configured Formspree form; only the report details and an optional reply email are submitted.
+
 ## Run and install
 
 The app can be opened directly, but browsers restrict offline installation and system notifications for `file://` pages. For the installable offline app, serve this folder from the device:
@@ -88,6 +90,8 @@ flutter build macos --release
 - Mark classes present, absent, or cancelled. Cancelled classes do not contribute to the attended or held totals.
 - Add an extra class by selecting a date, an available fixed period, and a subject name. Attendance totals and the 75% eligibility estimate update immediately after an attendance status is recorded.
 - The calendar, alerts, subject calculations, and timetable work offline.
+- The calendar marks days when every non-cancelled class was attended. A subject below 85% is highlighted on app launch and in the upcoming-class reminder.
+- Use **Report a bug** to send a report through the configured Formspree endpoint. Attendance and timetable records are not included in the report.
 
 ## Notifications and limitations
 
