@@ -1,6 +1,8 @@
-# Classmate · Student Attendance
+# Classmate · Student Attendance System
 
 Classmate is a student-only, local-first timetable and attendance tracker. It has no sign-in, backend, teacher tools, or cloud sync. Timetable entries, attendance updates, reminders, and backups are stored in the browser on the device.
+
+The app also supports an animated light/dark theme, a top navigation bar, full-day attendance celebrations, and 85% attendance warnings. Voluntary bug reports are sent to the configured Formspree form; only the report details and an optional reply email are submitted.
 
 ## Run and install
 
@@ -28,18 +30,53 @@ A native iOS app is not currently included in this project, so there is no iPhon
 
 GitHub Releases are used for Android APK downloads. An iOS `.ipa` is not a generally installable equivalent: iOS apps must be signed and distributed through an Apple-supported method.
 
-## Project layout and platform support
+## Project Layout & Architecture
 
-- `app/index.html` contains the app interface and behavior.
-- `app/manifest.webmanifest` configures the installed app.
-- `assets/icon.svg` contains the app icon.
-- `service-worker.js` configures offline caching.
-- `index.html` preserves the simple site-root entry point by redirecting to the app.
-- `mobile/` contains the Flutter Android app and its bundled web interface.
+- `backend/`: Python Flask REST API server with SQLAlchemy and SQLite database.
+- `mobile/`: Flutter cross-platform mobile application (Android APK, iOS, macOS) with Flask API integration and web fallback.
+- `app/index.html`: Responsive PWA web app interface.
+- `service-worker.js`: Offline caching configuration.
 
-The repository includes both the responsive web app (PWA) and a Flutter Android wrapper in `mobile/`. The Android app bundles the same interface for offline use. Browser install availability and notification behavior depend on the browser and operating-system version.
+## 1. Flask Backend Setup
 
-To build a local Android release APK, install Flutter and the Android SDK, then run `flutter pub get` and `flutter build apk --release` from `mobile/`. The output is `mobile/build/app/outputs/flutter-apk/app-release.apk`. The local release build is debug-signed for device testing; Google Play distribution requires your own upload key.
+The Python Flask backend handles data persistence, timetable records, and attendance sync in a SQLite database (`classmate.db`).
+
+1. Navigate to `backend/`:
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   python app.py
+   ```
+2. The server will start on `http://localhost:5000` (or `http://0.0.0.0:5000`).
+
+## 2. Mobile App (Flutter)
+
+The Flutter mobile application supports Android, iOS, and macOS, connecting directly to the Flask backend API with offline support.
+
+### Building Android APK
+
+```bash
+cd mobile
+flutter pub get
+flutter build apk --release
+```
+The generated APK is located at `mobile/build/app/outputs/flutter-apk/app-release.apk`.
+
+### Building iOS / macOS Mobile Build
+
+On macOS with Xcode installed:
+
+```bash
+cd mobile
+# For iOS:
+flutter build ios --release
+# Or generate iOS IPA package:
+flutter build ipa --release
+
+# For macOS Desktop:
+flutter build macos --release
+```
+
 
 ## Timetable and attendance
 
@@ -53,6 +90,8 @@ To build a local Android release APK, install Flutter and the Android SDK, then 
 - Mark classes present, absent, or cancelled. Cancelled classes do not contribute to the attended or held totals.
 - Add an extra class by selecting a date, an available fixed period, and a subject name. Attendance totals and the 75% eligibility estimate update immediately after an attendance status is recorded.
 - The calendar, alerts, subject calculations, and timetable work offline.
+- The calendar marks days when every non-cancelled class was attended. A subject below 85% is highlighted on app launch and in the upcoming-class reminder.
+- Use **Report a bug** to send a report through the configured Formspree endpoint. Attendance and timetable records are not included in the report.
 
 ## Notifications and limitations
 

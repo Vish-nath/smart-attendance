@@ -6,13 +6,15 @@
 # invoked from the command line by running `flutter analyze`.
 
 # The following line activates a set of recommended lints for Flutter apps,
-# packages, and plugins designed to encourage good coding practices.
+# packages, and plugins designed to encourage good coding practices.d
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
   exclude:
     - build/**
     - android/**
+    - ios/**
+    - macos/**
 
 linter:
   # The lint rules applied to this project can be customized in the
