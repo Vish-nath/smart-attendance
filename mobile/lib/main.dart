@@ -6,10 +6,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'api_service.dart';
 
-void main() {
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+  const DarwinInitializationSettings initializationSettingsDarwin = DarwinInitializationSettings();
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+    iOS: initializationSettingsDarwin,
+  );
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
   runApp(const ClassmateApp());
 }
 
@@ -241,6 +253,30 @@ class _ClassmateHomeState extends State<ClassmateHome> {
       }
 
       switch (request['action']) {
+        case 'notify':
+          final title = request['title'] as String;
+          final body = request['body'] as String;
+          final androidDetails = const AndroidNotificationDetails(
+            'classmate_reminders',
+            'Class Reminders',
+            channelDescription: 'Notifications for class start and attendance',
+            importance: Importance.max,
+            priority: Priority.high,
+          );
+          final iosDetails = const DarwinNotificationDetails();
+          final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+          await flutterLocalNotificationsPlugin.show(
+            DateTime.now().millisecond,
+            title,
+            body,
+            details,
+          );
+          break;
+        case 'request-notifications':
+          final status = await Permission.notification.request();
+          final granted = status.isGranted;
+          await _controller.runJavaScript('window.classmateSetNotificationPermission($granted);');
+          break;
         case 'export':
           final content = request['content'];
           final fileName = request['fileName'];
