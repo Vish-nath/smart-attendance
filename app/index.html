@@ -902,7 +902,9 @@
           ...risks.map((item) => `<article class="alert-card danger"><span class="alert-symbol">!</span><div class="alert-body"><h3>${esc(item.subject)} is below ${REMINDER_THRESHOLD}%</h3><p>Current attendance is ${item.percent.toFixed(1)}%. Attend this subject's upcoming classes to raise attendance toward your target.</p></div><span class="status-pill danger">${item.percent.toFixed(0)}%</span></article>`)
         ];
         if (holiday) alerts.push('<article class="alert-card"><span class="alert-symbol">☀</span><div class="alert-body"><h3>Today is a weekly holiday</h3><p>Sundays and the 1st and 3rd Saturdays are holidays. Extra classes can still be added.</p></div></article>');
-        const permission = "Notification" in window ? Notification.permission : "unsupported";
+        const permission = window.ClassmateNative
+      ? (data.nativeNotificationGranted ? "granted" : "unsupported")
+      : ("Notification" in window ? Notification.permission : "unsupported");
         const notificationLabel = permission === "granted" ? "Notifications enabled" : permission === "denied" ? "Blocked in browser settings" : "Enable class reminders";
         const notificationHelp = permission === "granted"
           ? "Reminder notifications are available while this app is open. Your weekly schedule is checked every 30 seconds."
@@ -1079,6 +1081,27 @@
       }
 
       function triggerNativeNotification(item, phase) {
+    if (window.ClassmateNative) {
+      const key = `${item.id}:${phase}`;
+      if (data.notified[key]) return;
+      data.notified[key] = Date.now();
+      if (!saveData()) return;
+      const title = item.attendanceWarning !== null
+        ? `Attendance alert · ${item.subject}`
+        : phase === "finished" ? "Class finished · update attendance" : phase === "now" ? "Your class is starting" : "Class starting soon";
+      const options = {
+        body: item.attendanceWarning !== null
+          ? `${item.attendanceWarning.toFixed(1)}% attendance (below ${REMINDER_THRESHOLD}%). Class ${periodLabel(item.slot)}.`
+          : `${item.subject} · ${periodLabel(item.slot)}`,
+      };
+      window.ClassmateNative.postMessage(JSON.stringify({
+        action: "notify",
+        title: title,
+        body: options.body
+      }));
+      return;
+    }
+
         if (!("Notification" in window) || Notification.permission !== "granted") return;
         const key = `${item.id}:${phase}`;
         if (data.notified[key]) return;
@@ -1132,7 +1155,24 @@
         if (shouldRender) render();
       }
 
-      function requestNotifications() {
+      window.classmateSetNotificationPermission = (granted) => {
+    data.nativeNotificationGranted = granted;
+    saveData();
+    render();
+    if (granted) {
+      showToast("Class notifications enabled.");
+      checkReminders();
+    } else {
+      showToast("Notification permission was not granted. In-app reminders remain available.");
+    }
+  };
+
+  function requestNotifications() {
+    if (window.ClassmateNative) {
+      window.ClassmateNative.postMessage(JSON.stringify({ action: "request-notifications" }));
+      return;
+    }
+
         if (!("Notification" in window)) {
           showToast("This browser does not support notifications. In-app reminders still work while the page is open.", true);
           return;
