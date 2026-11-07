@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:http/http.dart' as http;
 
 import 'api_service.dart';
 
@@ -276,6 +277,27 @@ class _ClassmateHomeState extends State<ClassmateHome> {
           final status = await Permission.notification.request();
           final granted = status.isGranted;
           await _controller.runJavaScript('window.classmateSetNotificationPermission($granted);');
+          break;
+        case 'report':
+          final endpoint = request['endpoint'] as String;
+          final reportData = request['data'] as Map<String, dynamic>;
+          try {
+            final response = await http.post(
+              Uri.parse(endpoint),
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: jsonEncode(reportData),
+            );
+            if (response.statusCode >= 200 && response.statusCode < 300) {
+              await _controller.runJavaScript('if(window.classmateReportStatus) window.classmateReportStatus(true, "");');
+            } else {
+              await _controller.runJavaScript('if(window.classmateReportStatus) window.classmateReportStatus(false, "Server error: ${response.statusCode}");');
+            }
+          } catch (e) {
+            await _controller.runJavaScript('if(window.classmateReportStatus) window.classmateReportStatus(false, "${e.toString().replaceAll('"', '\\"')}");');
+          }
           break;
         case 'export':
           final content = request['content'];

@@ -1209,14 +1209,39 @@
         const submitButton = $("#report-submit");
         const status = $("#report-status");
         const formData = new FormData(form);
-        formData.set("_subject", "Classmate bug report");
+        const jsonData = Object.fromEntries(formData.entries());
+        jsonData._subject = "Classmate bug report";
+
         submitButton.disabled = true;
         status.textContent = "Sending your report…";
+
+        window.classmateReportStatus = (success, message) => {
+          submitButton.disabled = false;
+          if (success) {
+            status.textContent = "Thanks! Your bug report was sent.";
+            form.reset();
+          } else {
+            status.textContent = `Could not send your report: ${message}`;
+          }
+        };
+
+        if (window.ClassmateNative) {
+          window.ClassmateNative.postMessage(JSON.stringify({
+            action: "report",
+            endpoint: REPORT_ENDPOINT,
+            data: jsonData
+          }));
+          return;
+        }
+
         try {
           const response = await fetch(REPORT_ENDPOINT, {
             method: "POST",
-            headers: { Accept: "application/json" },
-            body: formData
+            headers: {
+              "Accept": "application/json",
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(jsonData)
           });
           if (!response.ok) {
             let detail = `Formspree returned status ${response.status}.`;
@@ -1230,12 +1255,9 @@
             }
             throw new Error(detail);
           }
-          status.textContent = "Thanks! Your bug report was sent.";
-          form.reset();
+          window.classmateReportStatus(true, "");
         } catch (error) {
-          status.textContent = `Could not send your report: ${error.message}`;
-        } finally {
-          submitButton.disabled = false;
+          window.classmateReportStatus(false, error.message);
         }
       }
 
