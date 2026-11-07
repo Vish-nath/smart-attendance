@@ -903,7 +903,7 @@
         ];
         if (holiday) alerts.push('<article class="alert-card"><span class="alert-symbol">☀</span><div class="alert-body"><h3>Today is a weekly holiday</h3><p>Sundays and the 1st and 3rd Saturdays are holidays. Extra classes can still be added.</p></div></article>');
         const permission = window.ClassmateNative
-      ? (data.nativeNotificationGranted ? "granted" : "unsupported")
+      ? (data.nativeNotificationGranted ? "granted" : "default")
       : ("Notification" in window ? Notification.permission : "unsupported");
         const notificationLabel = permission === "granted" ? "Notifications enabled" : permission === "denied" ? "Blocked in browser settings" : "Enable class reminders";
         const notificationHelp = permission === "granted"
