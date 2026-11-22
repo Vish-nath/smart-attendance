@@ -868,6 +868,7 @@
           if (status) status.textContent = "Please choose an image file such as JPG or PNG.";
           return;
         }
+        const imageUrl = URL.createObjectURL(file);
         if (preview) preview.innerHTML = "";
         if (status) status.textContent = "Loading text recognition…";
         const loadOcr = () => {
@@ -882,14 +883,22 @@
         };
         loadOcr().then(async (tesseract) => {
           try {
-            const result = await tesseract.recognize(file, "eng", { logger: (message) => {
-              if (status && message.status === "recognizing text") status.textContent = `Reading image… ${Math.round(message.progress * 100)}%`;
+            const result = await tesseract.recognize(imageUrl, "eng", { logger: (message) => {
+              const currentStatus = $("#ocr-status");
+              if (currentStatus && message.status === "recognizing text") currentStatus.textContent = `Reading image… ${Math.round(message.progress * 100)}%`;
             } });
             renderOcrPreview(result.data.text);
           } catch (error) {
-            if (status) status.textContent = `Could not read image: ${error.message}`;
+            const currentStatus = $("#ocr-status");
+            if (currentStatus) currentStatus.textContent = `Could not read image: ${error.message}`;
+          } finally {
+            URL.revokeObjectURL(imageUrl);
           }
-        }).catch((error) => { if (status) status.textContent = error.message; });
+        }).catch((error) => {
+          const currentStatus = $("#ocr-status");
+          if (currentStatus) currentStatus.textContent = error.message;
+          URL.revokeObjectURL(imageUrl);
+        });
       }
 
       function showOcrGrid(detected) {
@@ -1536,7 +1545,8 @@
       });
       document.addEventListener("change", (event) => {
         if (event.target.id === "timetable-image") {
-          analyzeTimetableImage(event.target.files?.[0]);
+          const file = event.target.files?.[0];
+          if (file) analyzeTimetableImage(file);
           event.target.value = "";
         } else if (event.target.matches('[data-change="attendance-date"]') && event.target.value) {
           selectedDate = event.target.value;
