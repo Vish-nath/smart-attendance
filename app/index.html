@@ -78,6 +78,9 @@
       min-height: 100vh;
       margin: 0;
       padding-top: env(safe-area-inset-top, 0);
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      padding-left: env(safe-area-inset-left, 0);
+      padding-right: env(safe-area-inset-right, 0);
       background-color: var(--bg);
       background-image:
         radial-gradient(circle at 15% 50%, color-mix(in srgb, var(--brand) 8%, transparent) 0%, transparent 50%),
@@ -90,8 +93,13 @@
       -webkit-font-smoothing: antialiased;
       transition: background-color .25s ease, color .25s ease;
     }
-    .card, .button, .icon-button, .nav-link, .alert-card, .calendar-day, dialog {
-      transition: background-color .25s ease, color .25s ease, border-color .25s ease, transform .25s cubic-bezier(0.3, 0.7, 0.4, 1.5), box-shadow .25s ease;
+    .card, .button, .icon-button, .nav-link, .alert-card, .calendar-day {
+      transition: background-color .15s ease, color .15s ease, border-color .15s ease, transform .2s cubic-bezier(0.2, 0.8, 0.4, 1);
+      transform: translateZ(0);
+    }
+    dialog {
+      transition: opacity .2s cubic-bezier(0.2, 0.8, 0.4, 1), transform .2s cubic-bezier(0.2, 0.8, 0.4, 1);
+      will-change: transform, opacity;
     }
     button, input, select { font: inherit; }
     button { color: inherit; }
@@ -111,8 +119,10 @@
       padding: 26px 16px 18px;
       border-right: 1px solid var(--line);
       background: var(--surface-frosted);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transform: translateZ(0);
+      will-change: transform;
     }
     .brand { display: flex; align-items: center; gap: 11px; padding: 2px 9px 28px; }
     .brand-mark {
@@ -151,7 +161,8 @@
     main { width: min(1120px, 100%); margin: 0 auto; padding: 24px clamp(22px, 4vw, 54px) 60px; }
     .topbar { display: grid; gap: 17px; margin-bottom: 26px; }
     .topbar-main { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-    .top-nav { display: flex; min-width: 0; gap: 5px; overflow-x: auto; padding: 0 0 10px; border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+    .top-nav { display: flex; min-width: 0; gap: 5px; overflow-x: auto; padding: 0 0 10px; border-bottom: 1px solid var(--line); scrollbar-width: none; -ms-overflow-style: none; }
+    .top-nav::-webkit-scrollbar { display: none; }
     .top-nav .nav-link { min-height: 40px; flex: 0 0 auto; padding: 0 13px; }
     .theme-toggle { min-width: 40px; padding: 8px; overflow: hidden; }
     .theme-toggle span { display: inline-block; font-size: 16px; transition: transform .3s ease; }
@@ -163,7 +174,7 @@
     p { margin: 0; }
     .top-actions { display: flex; align-items: center; gap: 9px; }
     .today-label { color: var(--muted); font-size: 12px; }
-    .icon-button, .button {
+    .button, .icon-button {
       display: inline-flex;
       min-height: 38px;
       align-items: center;
@@ -178,7 +189,8 @@
       font-size: 12px;
       font-weight: 650;
       text-decoration: none;
-      transition: transform .12s, background .15s, border-color .15s;
+      transform: translateZ(0);
+      will-change: transform;
     }
     .button:hover, .icon-button:hover { border-color: var(--brand); }
     .button:active, .icon-button:active { transform: translateY(1px); }
@@ -190,7 +202,7 @@
     .button.small { min-height: 32px; padding: 6px 10px; font-size: 11px; }
     .button:disabled { opacity: .48; cursor: not-allowed; }
     .page { display: none; }
-    .page.active { display: block; animation: appear .25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .page.active { display: block; animation: appear .25s cubic-bezier(0.2, 0.8, 0.2, 1); will-change: transform, opacity; transform: translateZ(0); }
     @keyframes appear { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
     .page-intro { margin: -18px 0 22px; color: var(--muted); }
     .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
@@ -205,12 +217,10 @@
       padding: 19px;
       border: 1px solid var(--line);
       border-radius: 16px;
-      background: var(--surface-frosted);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      background: var(--surface);
       box-shadow: var(--shadow);
     }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgb(34 45 77 / 10%); border-color: color-mix(in srgb, var(--brand) 25%, var(--line)); }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgb(34 45 77 / 8%); border-color: color-mix(in srgb, var(--brand) 25%, var(--line)); }
     .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
     .card-subtitle { margin-top: 3px; color: var(--muted); font-size: 12px; }
     .summary-card { min-height: 154px; }
@@ -358,12 +368,12 @@
       border: 1px solid var(--line);
       border-radius: 20px;
       background: var(--surface-frosted);
-      backdrop-filter: blur(28px);
-      -webkit-backdrop-filter: blur(28px);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       color: var(--ink);
       box-shadow: 0 24px 60px rgb(0 0 0 / 22%);
     }
-    dialog::backdrop { background: rgb(17 22 37 / 35%); backdrop-filter: blur(4px); }
+    dialog::backdrop { background: rgba(17, 22, 37, 0.5); }
     .dialog-content { padding: 22px; }
     .dialog-content h2 { margin-bottom: 5px; font-size: 18px; }
     .dialog-content > p { margin-bottom: 18px; color: var(--muted); font-size: 12px; }
