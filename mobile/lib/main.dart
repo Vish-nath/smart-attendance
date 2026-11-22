@@ -13,6 +13,11 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  runApp(const ClassmateApp());
+  unawaited(_initializeNotifications());
+}
+
+Future<void> _initializeNotifications() async {
   const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('ic_launcher');
   const DarwinInitializationSettings initializationSettingsDarwin =
       DarwinInitializationSettings();
@@ -20,10 +25,11 @@ void main() async {
     android: initializationSettingsAndroid,
     iOS: initializationSettingsDarwin,
   );
-  await flutterLocalNotificationsPlugin.initialize(
-    settings: initializationSettings,
-  );
-  runApp(const ClassmateApp());
+  try {
+    await flutterLocalNotificationsPlugin.initialize(
+      settings: initializationSettings,
+    );
+  } catch (_) {}
 }
 
 class ClassmateApp extends StatelessWidget {
