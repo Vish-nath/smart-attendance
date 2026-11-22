@@ -206,6 +206,9 @@
     .summary-detail { margin-top: 9px; color: var(--muted); font-size: 12px; }
     .progress { height: 7px; overflow: hidden; margin-top: 16px; border-radius: 99px; background: var(--surface-muted); }
     .progress > span { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
+    .threshold-progress { position: relative; overflow: visible; margin: 15px 0 0; }
+    .threshold-progress > span { overflow: hidden; }
+    .threshold-progress > i { position: absolute; top: -4px; width: 2px; height: 15px; background: var(--ink); opacity: .72; }
     .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 99px; background: var(--surface-muted); color: var(--muted); font-size: 10px; font-weight: 750; white-space: nowrap; }
     .status-pill.good { background: var(--green-soft); color: var(--green); }
     .status-pill.warn { background: var(--amber-soft); color: var(--amber); }
@@ -268,6 +271,12 @@
       border-top: 1px solid var(--line);
     }
     .slot-row:first-child { border-top: 0; }
+    .timetable-save-row { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .ocr-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .ocr-status { color: var(--muted); font-size: 12px; }
+    .ocr-preview { margin-top: 12px; }
+    .button.save-pending { border-color: var(--amber); background: var(--amber); color: #171717; box-shadow: 0 0 0 3px var(--amber-soft); }
+    .button.save-idle { opacity: .5; }
     .break-note { display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; padding: 10px 12px; border-radius: 10px; background: var(--surface-muted); color: var(--muted); font-size: 11px; }
     .hint { margin-top: 12px; color: var(--muted); font-size: 11px; }
     .calendar-card { padding: 18px; }
@@ -453,8 +462,10 @@
       "use strict";
 
       const STORAGE_KEY = "classmate.student-data.v1";
-      const THRESHOLD = 75;
-      const REMINDER_THRESHOLD = 85;
+      const THRESHOLD = 85;
+      const REMINDER_THRESHOLD = THRESHOLD;
+      let timetableDraft = null;
+      let ocrTimetableDraft = null;
       const THEME_KEY = "classmate.theme.v1";
       const REPORT_ENDPOINT = "https://formspree.io/f/mvkkwkkj";
       const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -740,7 +751,7 @@
 
       function subjectCard(item) {
         const percentText = item.percent === null ? "—" : `${item.percent.toFixed(1)}%`;
-        const stateLabel = item.state === "danger" ? "Below 75%" : item.state === "warn" ? "Near threshold" :
+        const stateLabel = item.state === "danger" ? "Shortage" : item.state === "warn" ? "Borderline" :
           item.state === "good" ? "On track" : "No records yet";
         const advice = item.percent === null
           ? "Mark classes present or absent to start calculating attendance."
@@ -748,8 +759,8 @@
             ? `Attend the next ${item.needed} class${item.needed === 1 ? "" : "es"} to reach ${THRESHOLD}%.`
             : item.canMiss
               ? `You can miss ${item.canMiss} more class${item.canMiss === 1 ? "" : "es"} and remain at or above ${THRESHOLD}%.`
-              : "Avoid missing classes to keep your attendance at or above 75%.";
-        const bar = item.percent === null ? "" : `<div class="progress" role="img" aria-label="${percentText} attendance"><span style="width:${Math.min(100, item.percent)}%;background:var(--${item.state === "danger" ? "red" : item.state === "warn" ? "amber" : "green"})"></span></div>`;
+              : `Avoid missing classes to stay at or above ${THRESHOLD}%.`;
+        const bar = item.percent === null ? "" : `<div class="progress threshold-progress" role="img" aria-label="${percentText} attendance; ${THRESHOLD}% target"><span style="width:${Math.min(100, item.percent)}%;background:var(--${item.state === "danger" ? "red" : item.state === "warn" ? "amber" : "green"})"></span><i style="left:${THRESHOLD}%"></i></div>`;
         return `<article class="subject-card">
           <div class="subject-title-row"><div class="subject-name">${esc(item.subject)}</div><span class="status-pill ${item.state}">${stateLabel}</span></div>
           <div class="subject-percent">${percentText} <small>${item.held ? `${item.attended} of ${item.held} attended` : "no classes recorded"}</small></div>
@@ -799,7 +810,8 @@
 
       function timetablePage() {
         const day = selectedDay;
-        const values = data.timetable[day];
+        const values = timetableDraft || data.timetable[day];
+        const dirty = values.some((value, index) => value !== data.timetable[day][index]);
         const tabs = DAYS.map((name, index) =>
           `<button class="day-tab" type="button" aria-pressed="${index === day}" data-action="select-weekday" data-day="${index}">${SHORT_DAYS[index]}</button>`
         ).join("");
@@ -807,18 +819,86 @@
           <div class="time-block">${period.start}<br>${period.end}</div>
           <label class="sr-only" for="subject-${index}">${DAYS[day]} period ${index + 1} subject</label>
           <input id="subject-${index}" class="subject-entry" type="text" maxlength="80" value="${esc(values[index])}" placeholder="Add subject name" data-slot="${index}" autocomplete="off">
-          <button class="button small primary" type="button" data-action="save-slot" data-slot="${index}">Save</button>
         </div>`).join("");
         return `${pageIntro("Enter subject names for each day. Period timings follow your reference timetable and cannot be changed.")}
+          <section class="card ocr-controls"><div><h2>Import timetable photo</h2><p class="card-subtitle">Choose a clear timetable image. Review detected subjects before applying.</p></div><label class="button soft" for="timetable-image">Choose image</label><input id="timetable-image" type="file" accept="image/*" hidden><span id="ocr-status" class="ocr-status" aria-live="polite"></span></section>
+          <section id="ocr-preview" class="ocr-preview"></section>
           <div class="day-tabs" role="group" aria-label="Choose a weekday">${tabs}</div>
           <section class="card"><div class="card-head"><div><h2>${DAYS[day]}</h2><p class="card-subtitle">Add a subject or leave the period empty.</p></div><span class="status-pill brand">7 fixed periods</span></div>
             <div class="slot-list">${slots}</div>
+            <div class="timetable-save-row"><button class="button primary ${dirty ? "save-pending" : "save-idle"}" type="button" data-action="save-timetable" ${dirty ? "" : "disabled"}>Save timetable</button></div>
             <div class="break-note"><span aria-hidden="true">☕</span><span>Tea break 10:45–11:05 · Lunch 13:00–14:00</span></div>
           </section>
           <section class="card" style="margin-top:16px"><div class="card-head"><div><h2>One-time classes</h2><p class="card-subtitle">Extra classes for a specific date; the weekly timetable stays unchanged.</p></div><button class="button small soft" type="button" data-action="extra-open" data-date="${selectedDate}">＋ Add extra</button></div>
             <div class="date-toolbar"><label for="timetable-extra-date" class="sr-only">Choose date for one-time classes</label><input id="timetable-extra-date" class="date-input" type="date" value="${selectedDate}" data-change="timetable-date" aria-label="Choose date for one-time classes"><span class="card-subtitle">${esc(humanDate(selectedDate))}${isHoliday(selectedDate) ? " · Holiday" : ""}</span></div>
             ${(data.extras[selectedDate] || []).length ? `<div class="class-list">${getClasses(selectedDate).filter((item) => item.extra).map((item) => classRow(item, selectedDate, "timetable")).join("")}</div>` : emptyState("No extra classes on this date", "Add one using an available fixed period.")}</section>
           <p class="hint">A recurring timetable is skipped automatically on Sundays and the 1st and 3rd Saturdays. Extra classes can still be added to a holiday.</p>`;
+      }
+
+      function analyzeTimetableImage(file) {
+        if (!file) return;
+        const status = $("#ocr-status");
+        const preview = $("#ocr-preview");
+        if (!file.type.startsWith("image/")) {
+          if (status) status.textContent = "Please choose an image file such as JPG or PNG.";
+          return;
+        }
+        if (preview) preview.innerHTML = "";
+        if (status) status.textContent = "Loading text recognition…";
+        const loadOcr = () => {
+          if (window.Tesseract) return Promise.resolve(window.Tesseract);
+          return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+            script.onload = () => window.Tesseract ? resolve(window.Tesseract) : reject(new Error("OCR library did not initialize."));
+            script.onerror = () => reject(new Error("Could not load OCR. Connect to the internet and try again."));
+            document.head.append(script);
+          });
+        };
+        loadOcr().then(async (tesseract) => {
+          try {
+            const result = await tesseract.recognize(file, "eng", { logger: (message) => {
+              if (status && message.status === "recognizing text") status.textContent = `Reading image… ${Math.round(message.progress * 100)}%`;
+            } });
+            renderOcrPreview(result.data.text);
+          } catch (error) {
+            if (status) status.textContent = `Could not read image: ${error.message}`;
+          }
+        }).catch((error) => { if (status) status.textContent = error.message; });
+      }
+
+      function renderOcrPreview(text) {
+        if (Array.isArray(text)) {
+          const detected = text;
+          const preview = $("#ocr-preview");
+          if (!preview) return;
+          preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Detected timetable</h2><p class="card-subtitle">Review and edit the subjects before applying.</p></div><button class="button primary" type="button" data-action="apply-ocr">Apply detected timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => `<label class="sr-only" for="ocr-${dayIndex}-${slot}">${day} period ${slot + 1}</label><input id="ocr-${dayIndex}-${slot}" class="ocr-entry" data-day="${dayIndex}" data-slot="${slot}" maxlength="80" value="${esc(subject)}" placeholder="${esc(PERIODS[slot].start)} · empty period">`).join("")}</article>`).join("")}</div></section>`;
+          return;
+        }
+        const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        const dayPattern = /\b(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?)\b/i;
+        const dayIndexes = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5 };
+        const detected = Array.from({ length: 6 }, () => Array(7).fill(""));
+        let found = 0;
+        for (const line of lines) {
+          const dayMatch = line.match(dayPattern);
+          if (!dayMatch) continue;
+          const dayIndex = dayIndexes[dayMatch[1].slice(0, 3).toLowerCase()];
+          const remainder = line.replace(dayMatch[0], "").replace(/^\s*[:|\-–]?\s*/, "");
+          const subjects = remainder.split(/\s{2,}|\s*\|\s*|\s*;\s*/).map((value) => value.trim()).filter(Boolean);
+          if (!subjects.length && remainder) subjects.push(...remainder.split(/\s{2,}/).filter(Boolean));
+          subjects.slice(0, 7).forEach((subject, slot) => { detected[dayIndex][slot] = subject.slice(0, 80); found += 1; });
+        }
+        const preview = $("#ocr-preview");
+        const status = $("#ocr-status");
+        if (!found) {
+          status.textContent = "No weekday rows detected. Try a clearer image with day names and separated subject columns.";
+          preview.innerHTML = `<section class="card"><h2>Review recognized text</h2><p class="card-subtitle">The image was read, but weekday rows were not identified. Check the text and enter subjects manually in the timetable below.</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0 0;color:var(--muted)">${esc(text.slice(0, 6000))}</pre></section>`;
+          return;
+        }
+        status.textContent = `Detected ${found} subject entries. Check the preview before applying.`;
+        ocrTimetableDraft = detected;
+        preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Detected timetable</h2><p class="card-subtitle">OCR may misread text. Review and edit the subjects before applying.</p></div><button class="button primary" type="button" data-action="apply-ocr">Apply detected timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => `<label class="sr-only" for="ocr-${dayIndex}-${slot}">${day} period ${slot + 1}</label><input id="ocr-${dayIndex}-${slot}" class="ocr-entry" data-day="${dayIndex}" data-slot="${slot}" maxlength="80" value="${esc(subject)}" placeholder="${esc(PERIODS[slot].start)} · empty period">`).join("")}</article>`).join("")}</div></section>`;
       }
 
       function monthCalendar() {
@@ -902,7 +982,9 @@
           ...risks.map((item) => `<article class="alert-card danger"><span class="alert-symbol">!</span><div class="alert-body"><h3>${esc(item.subject)} is below ${REMINDER_THRESHOLD}%</h3><p>Current attendance is ${item.percent.toFixed(1)}%. Attend this subject's upcoming classes to raise attendance toward your target.</p></div><span class="status-pill danger">${item.percent.toFixed(0)}%</span></article>`)
         ];
         if (holiday) alerts.push('<article class="alert-card"><span class="alert-symbol">☀</span><div class="alert-body"><h3>Today is a weekly holiday</h3><p>Sundays and the 1st and 3rd Saturdays are holidays. Extra classes can still be added.</p></div></article>');
-        const permission = "Notification" in window ? Notification.permission : "unsupported";
+        const permission = window.ClassmateNative
+      ? (data.nativeNotificationGranted ? "granted" : "default")
+      : ("Notification" in window ? Notification.permission : "unsupported");
         const notificationLabel = permission === "granted" ? "Notifications enabled" : permission === "denied" ? "Blocked in browser settings" : "Enable class reminders";
         const notificationHelp = permission === "granted"
           ? "Reminder notifications are available while this app is open. Your weekly schedule is checked every 30 seconds."
@@ -953,6 +1035,11 @@
           page.classList.toggle("active", id === activeId);
           if (id === activeId) $("#page-title").textContent = title;
         });
+        if (activeId === "timetable" && ocrTimetableDraft) {
+          const status = $("#ocr-status");
+          if (status) status.textContent = "Detected timetable ready. Review it below and apply when ready.";
+          renderOcrPreview(ocrTimetableDraft);
+        }
         $("#eyebrow").textContent = activeId === "dashboard" ? "YOUR STUDENT SPACE" : "YOUR STUDENT SPACE · " + pages[activeId][0].toUpperCase();
         $("#today-label").textContent = humanDate(todayKey(), { weekday: "short", month: "short", day: "numeric" });
         $$("#top-nav a").forEach((link) => {
@@ -1061,24 +1148,41 @@
         return true;
       }
 
-      function saveSlot(slot) {
-        const input = $(`#subject-${slot}`);
-        const subject = input.value.trim();
-        if (subject.length > 80) {
-          showToast("Subject names must be 80 characters or fewer.", true);
-          return;
-        }
-        const old = data.timetable[selectedDay][slot];
-        data.timetable[selectedDay][slot] = subject;
+      function saveTimetable() {
+        if (!timetableDraft) return;
+        const old = data.timetable[selectedDay];
+        data.timetable[selectedDay] = timetableDraft.map((subject) => subject.trim());
         if (!saveData()) {
-          data.timetable[selectedDay][slot] = old;
+          data.timetable[selectedDay] = old;
           return;
         }
+        timetableDraft = null;
         render();
-        showToast(subject ? `${subject} saved for ${DAYS[selectedDay]}.` : `Period ${slot + 1} cleared.`);
+        showToast(`Timetable saved for ${DAYS[selectedDay]}.`);
       }
 
       function triggerNativeNotification(item, phase) {
+    if (window.ClassmateNative) {
+      const key = `${item.id}:${phase}`;
+      if (data.notified[key]) return;
+      data.notified[key] = Date.now();
+      if (!saveData()) return;
+      const title = item.attendanceWarning !== null
+        ? `Attendance alert · ${item.subject}`
+        : phase === "finished" ? "Class finished · update attendance" : phase === "now" ? "Your class is starting" : "Class starting soon";
+      const options = {
+        body: item.attendanceWarning !== null
+          ? `${item.attendanceWarning.toFixed(1)}% attendance (below ${REMINDER_THRESHOLD}%). Class ${periodLabel(item.slot)}.`
+          : `${item.subject} · ${periodLabel(item.slot)}`,
+      };
+      window.ClassmateNative.postMessage(JSON.stringify({
+        action: "notify",
+        title: title,
+        body: options.body
+      }));
+      return;
+    }
+
         if (!("Notification" in window) || Notification.permission !== "granted") return;
         const key = `${item.id}:${phase}`;
         if (data.notified[key]) return;
@@ -1132,7 +1236,24 @@
         if (shouldRender) render();
       }
 
-      function requestNotifications() {
+      window.classmateSetNotificationPermission = (granted) => {
+    data.nativeNotificationGranted = granted;
+    saveData();
+    render();
+    if (granted) {
+      showToast("Class notifications enabled.");
+      checkReminders();
+    } else {
+      showToast("Notification permission was not granted. In-app reminders remain available.");
+    }
+  };
+
+  function requestNotifications() {
+    if (window.ClassmateNative) {
+      window.ClassmateNative.postMessage(JSON.stringify({ action: "request-notifications" }));
+      return;
+    }
+
         if (!("Notification" in window)) {
           showToast("This browser does not support notifications. In-app reminders still work while the page is open.", true);
           return;
@@ -1169,14 +1290,39 @@
         const submitButton = $("#report-submit");
         const status = $("#report-status");
         const formData = new FormData(form);
-        formData.set("_subject", "Classmate bug report");
+        const jsonData = Object.fromEntries(formData.entries());
+        jsonData._subject = "Classmate bug report";
+
         submitButton.disabled = true;
         status.textContent = "Sending your report…";
+
+        window.classmateReportStatus = (success, message) => {
+          submitButton.disabled = false;
+          if (success) {
+            status.textContent = "Thanks! Your bug report was sent.";
+            form.reset();
+          } else {
+            status.textContent = `Could not send your report: ${message}`;
+          }
+        };
+
+        if (window.ClassmateNative) {
+          window.ClassmateNative.postMessage(JSON.stringify({
+            action: "report",
+            endpoint: REPORT_ENDPOINT,
+            data: jsonData
+          }));
+          return;
+        }
+
         try {
           const response = await fetch(REPORT_ENDPOINT, {
             method: "POST",
-            headers: { Accept: "application/json" },
-            body: formData
+            headers: {
+              "Accept": "application/json",
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(jsonData)
           });
           if (!response.ok) {
             let detail = `Formspree returned status ${response.status}.`;
@@ -1190,12 +1336,9 @@
             }
             throw new Error(detail);
           }
-          status.textContent = "Thanks! Your bug report was sent.";
-          form.reset();
+          window.classmateReportStatus(true, "");
         } catch (error) {
-          status.textContent = `Could not send your report: ${error.message}`;
-        } finally {
-          submitButton.disabled = false;
+          window.classmateReportStatus(false, error.message);
         }
       }
 
@@ -1260,10 +1403,26 @@
         } else if (action === "celebration-close") {
           $("#celebration-dialog").close();
         } else if (action === "select-weekday") {
+          if (timetableDraft && !confirm("Discard unsaved timetable changes?")) return;
+          timetableDraft = null;
           selectedDay = Number(button.dataset.day);
           render();
-        } else if (action === "save-slot") {
-          saveSlot(Number(button.dataset.slot));
+        } else if (action === "save-timetable") {
+          saveTimetable();
+        } else if (action === "apply-ocr") {
+          if (timetableDraft && !confirm("Discard your unsaved edits and apply the detected timetable?")) return;
+          if (!Array.isArray(ocrTimetableDraft) || ocrTimetableDraft.length !== 6) {
+            showToast("The detected timetable preview is unavailable. Please upload the image again.", true);
+            return;
+          }
+          const detected = ocrTimetableDraft.map((day) => day.map((subject) => String(subject).trim()));
+          const previous = data.timetable;
+          data.timetable = detected;
+          if (!saveData()) { data.timetable = previous; return; }
+          timetableDraft = null;
+          ocrTimetableDraft = null;
+          render();
+          showToast("Detected timetable applied and saved.");
         } else if (action === "select-date") {
           selectedDate = button.dataset.date;
           const selected = dateFromKey(selectedDate);
@@ -1341,7 +1500,10 @@
         if (button) handleAction(button);
       });
       document.addEventListener("change", (event) => {
-        if (event.target.matches('[data-change="attendance-date"]') && event.target.value) {
+        if (event.target.id === "timetable-image") {
+          analyzeTimetableImage(event.target.files?.[0]);
+          event.target.value = "";
+        } else if (event.target.matches('[data-change="attendance-date"]') && event.target.value) {
           selectedDate = event.target.value;
           const date = dateFromKey(selectedDate);
           calendarMonth = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -1367,6 +1529,21 @@
           importBackup(event.target.files?.[0]);
           event.target.value = "";
         }
+      });
+      document.addEventListener("input", (event) => {
+        if (event.target.matches(".ocr-entry")) {
+          ocrTimetableDraft[Number(event.target.dataset.day)][Number(event.target.dataset.slot)] = event.target.value;
+          return;
+        }
+        if (!event.target.matches(".subject-entry")) return;
+        if (!timetableDraft) timetableDraft = [...data.timetable[selectedDay]];
+        timetableDraft[Number(event.target.dataset.slot)] = event.target.value;
+        const saveButton = $('[data-action="save-timetable"]');
+        if (!saveButton) return;
+        const dirty = timetableDraft.some((value, index) => value !== data.timetable[selectedDay][index]);
+        saveButton.disabled = !dirty;
+        saveButton.classList.toggle("save-pending", dirty);
+        saveButton.classList.toggle("save-idle", !dirty);
       });
       document.addEventListener("submit", (event) => {
         if (event.target.id === "report-form") {

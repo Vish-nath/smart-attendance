@@ -465,6 +465,7 @@
       const THRESHOLD = 85;
       const REMINDER_THRESHOLD = THRESHOLD;
       let timetableDraft = null;
+      let ocrTimetableDraft = null;
       const THEME_KEY = "classmate.theme.v1";
       const REPORT_ENDPOINT = "https://formspree.io/f/mvkkwkkj";
       const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -835,26 +836,45 @@
       }
 
       function analyzeTimetableImage(file) {
-        if (!file || !file.type.startsWith("image/")) return;
+        if (!file) return;
         const status = $("#ocr-status");
+        const preview = $("#ocr-preview");
+        if (!file.type.startsWith("image/")) {
+          if (status) status.textContent = "Please choose an image file such as JPG or PNG.";
+          return;
+        }
+        if (preview) preview.innerHTML = "";
         if (status) status.textContent = "Loading text recognition…";
-        const script = document.createElement("script");
-        script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-        script.onload = async () => {
+        const loadOcr = () => {
+          if (window.Tesseract) return Promise.resolve(window.Tesseract);
+          return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+            script.onload = () => window.Tesseract ? resolve(window.Tesseract) : reject(new Error("OCR library did not initialize."));
+            script.onerror = () => reject(new Error("Could not load OCR. Connect to the internet and try again."));
+            document.head.append(script);
+          });
+        };
+        loadOcr().then(async (tesseract) => {
           try {
-            const result = await Tesseract.recognize(file, "eng", { logger: (message) => {
+            const result = await tesseract.recognize(file, "eng", { logger: (message) => {
               if (status && message.status === "recognizing text") status.textContent = `Reading image… ${Math.round(message.progress * 100)}%`;
             } });
             renderOcrPreview(result.data.text);
           } catch (error) {
             if (status) status.textContent = `Could not read image: ${error.message}`;
           }
-        };
-        script.onerror = () => { if (status) status.textContent = "Could not load OCR. Connect to the internet and try again."; };
-        document.head.append(script);
+        }).catch((error) => { if (status) status.textContent = error.message; });
       }
 
       function renderOcrPreview(text) {
+        if (Array.isArray(text)) {
+          const detected = text;
+          const preview = $("#ocr-preview");
+          if (!preview) return;
+          preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Detected timetable</h2><p class="card-subtitle">Review and edit the subjects before applying.</p></div><button class="button primary" type="button" data-action="apply-ocr">Apply detected timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => `<label class="sr-only" for="ocr-${dayIndex}-${slot}">${day} period ${slot + 1}</label><input id="ocr-${dayIndex}-${slot}" class="ocr-entry" data-day="${dayIndex}" data-slot="${slot}" maxlength="80" value="${esc(subject)}" placeholder="${esc(PERIODS[slot].start)} · empty period">`).join("")}</article>`).join("")}</div></section>`;
+          return;
+        }
         const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
         const dayPattern = /\b(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?)\b/i;
         const dayIndexes = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5 };
@@ -873,12 +893,12 @@
         const status = $("#ocr-status");
         if (!found) {
           status.textContent = "No weekday rows detected. Try a clearer image with day names and separated subject columns.";
-          preview.innerHTML = "";
+          preview.innerHTML = `<section class="card"><h2>Review recognized text</h2><p class="card-subtitle">The image was read, but weekday rows were not identified. Check the text and enter subjects manually in the timetable below.</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0 0;color:var(--muted)">${esc(text.slice(0, 6000))}</pre></section>`;
           return;
         }
         status.textContent = `Detected ${found} subject entries. Check the preview before applying.`;
-        preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Detected timetable</h2><p class="card-subtitle">OCR may misread text. Applying replaces the six weekday timetables.</p></div><button class="button primary" type="button" data-action="apply-ocr">Apply detected timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => subject ? `<p class="subject-detail">${esc(PERIODS[slot].start)} · ${esc(subject)}</p>` : "").join("") || '<p class="subject-detail">No entries detected</p>'}</article>`).join("")}</div></section>`;
-        preview.dataset.timetable = JSON.stringify(detected);
+        ocrTimetableDraft = detected;
+        preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Detected timetable</h2><p class="card-subtitle">OCR may misread text. Review and edit the subjects before applying.</p></div><button class="button primary" type="button" data-action="apply-ocr">Apply detected timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => `<label class="sr-only" for="ocr-${dayIndex}-${slot}">${day} period ${slot + 1}</label><input id="ocr-${dayIndex}-${slot}" class="ocr-entry" data-day="${dayIndex}" data-slot="${slot}" maxlength="80" value="${esc(subject)}" placeholder="${esc(PERIODS[slot].start)} · empty period">`).join("")}</article>`).join("")}</div></section>`;
       }
 
       function monthCalendar() {
@@ -1015,6 +1035,11 @@
           page.classList.toggle("active", id === activeId);
           if (id === activeId) $("#page-title").textContent = title;
         });
+        if (activeId === "timetable" && ocrTimetableDraft) {
+          const status = $("#ocr-status");
+          if (status) status.textContent = "Detected timetable ready. Review it below and apply when ready.";
+          renderOcrPreview(ocrTimetableDraft);
+        }
         $("#eyebrow").textContent = activeId === "dashboard" ? "YOUR STUDENT SPACE" : "YOUR STUDENT SPACE · " + pages[activeId][0].toUpperCase();
         $("#today-label").textContent = humanDate(todayKey(), { weekday: "short", month: "short", day: "numeric" });
         $$("#top-nav a").forEach((link) => {
@@ -1385,19 +1410,17 @@
         } else if (action === "save-timetable") {
           saveTimetable();
         } else if (action === "apply-ocr") {
-          const preview = $("#ocr-preview");
           if (timetableDraft && !confirm("Discard your unsaved edits and apply the detected timetable?")) return;
-          let detected;
-          try { detected = JSON.parse(preview.dataset.timetable || "null"); } catch (_) { detected = null; }
-          if (!Array.isArray(detected) || detected.length !== 6) {
+          if (!Array.isArray(ocrTimetableDraft) || ocrTimetableDraft.length !== 6) {
             showToast("The detected timetable preview is unavailable. Please upload the image again.", true);
             return;
           }
+          const detected = ocrTimetableDraft.map((day) => day.map((subject) => String(subject).trim()));
           const previous = data.timetable;
-          data.timetable = [...detected, Array(7).fill("")];
+          data.timetable = detected;
           if (!saveData()) { data.timetable = previous; return; }
           timetableDraft = null;
-          preview.dataset.timetable = "";
+          ocrTimetableDraft = null;
           render();
           showToast("Detected timetable applied and saved.");
         } else if (action === "select-date") {
@@ -1508,6 +1531,10 @@
         }
       });
       document.addEventListener("input", (event) => {
+        if (event.target.matches(".ocr-entry")) {
+          ocrTimetableDraft[Number(event.target.dataset.day)][Number(event.target.dataset.slot)] = event.target.value;
+          return;
+        }
         if (!event.target.matches(".subject-entry")) return;
         if (!timetableDraft) timetableDraft = [...data.timetable[selectedDay]];
         timetableDraft[Number(event.target.dataset.slot)] = event.target.value;
