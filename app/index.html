@@ -1354,67 +1354,6 @@
         showToast("Attendance backup downloaded.");
       }
 
-      async function submitBugReport(form) {
-        const submitButton = $("#report-submit");
-        const status = $("#report-status");
-        const formData = new FormData(form);
-        const jsonData = Object.fromEntries(formData.entries());
-        jsonData._subject = "Classmate bug report";
-
-        submitButton.disabled = true;
-        status.textContent = "Sending your report…";
-
-        window.classmateReportStatus = (success, message) => {
-          submitButton.disabled = false;
-          if (success) {
-            status.textContent = "Thanks! Your bug report was sent.";
-            form.reset();
-          } else {
-            status.textContent = `Could not send your report: ${message}`;
-          }
-        };
-
-        if (window.ClassmateNative) {
-          window.ClassmateNative.postMessage(JSON.stringify({
-            action: "report",
-            endpoint: REPORT_ENDPOINT,
-            data: jsonData
-          }));
-          return;
-        }
-
-        try {
-          const response = await fetch(form.action || REPORT_ENDPOINT, {
-            method: "POST",
-            headers: {
-              "Accept": "application/json",
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify(jsonData)
-          });
-          let result = null;
-          try {
-            result = await response.json();
-          } catch (_) {}
-          if (!response.ok) {
-            let detail = `Formspree returned status ${response.status}.`;
-            if (Array.isArray(result?.errors) && result.errors.length) {
-              detail = result.errors.map((item) => item.message).filter(Boolean).join(" ") || detail;
-            }
-            throw new Error(detail);
-          }
-          if (result?.ok === false) {
-            const detail = Array.isArray(result.errors)
-              ? result.errors.map((item) => item.message).filter(Boolean).join(" ")
-              : "Formspree did not accept the report.";
-            throw new Error(detail || "Formspree did not accept the report.");
-          }
-          window.classmateReportStatus(true, "");
-        } catch (error) {
-          window.classmateReportStatus(false, error.message);
-        }
-      }
-
       function importBackupContent(content) {
         try {
           const imported = JSON.parse(content);
@@ -1620,11 +1559,6 @@
         saveButton.classList.toggle("save-idle", !dirty);
       });
       document.addEventListener("submit", (event) => {
-        if (event.target.id === "report-form") {
-          event.preventDefault();
-          submitBugReport(event.target);
-          return;
-        }
         if (event.target.id !== "extra-form") return;
         event.preventDefault();
         const formData = new FormData(event.target);
