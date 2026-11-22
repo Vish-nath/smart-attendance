@@ -8,16 +8,15 @@ import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:http/http.dart' as http;
 
-import 'api_service.dart';
-
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('ic_launcher');
-  const DarwinInitializationSettings initializationSettingsDarwin = DarwinInitializationSettings();
+  const DarwinInitializationSettings initializationSettingsDarwin =
+      DarwinInitializationSettings();
   const InitializationSettings initializationSettings = InitializationSettings(
     android: initializationSettingsAndroid,
     iOS: initializationSettingsDarwin,
@@ -52,16 +51,12 @@ class ClassmateHome extends StatefulWidget {
 
 class _ClassmateHomeState extends State<ClassmateHome> {
   late final WebViewController _controller;
-  late ApiService _apiService;
   bool _isLoading = true;
-  bool _isSyncing = false;
-  bool _backendConnected = false;
   String? _loadError;
 
   @override
   void initState() {
     super.initState();
-    _apiService = ApiService();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xfff6f7fb))
@@ -79,7 +74,6 @@ class _ClassmateHomeState extends State<ClassmateHome> {
                 _isLoading = false;
                 _loadError = null;
               });
-              _checkBackendStatus();
             }
           },
           onWebResourceError: (error) {
@@ -95,15 +89,6 @@ class _ClassmateHomeState extends State<ClassmateHome> {
     unawaited(_loadApp());
   }
 
-  Future<void> _checkBackendStatus() async {
-    final connected = await _apiService.checkHealth();
-    if (mounted) {
-      setState(() {
-        _backendConnected = connected;
-      });
-    }
-  }
-
   Future<void> _loadApp() async {
     try {
       await _controller.loadFlutterAsset('assets/web/app/index.html');
@@ -115,112 +100,6 @@ class _ClassmateHomeState extends State<ClassmateHome> {
         });
       }
     }
-  }
-
-  Future<void> _syncDataWithBackend() async {
-    if (_isSyncing) return;
-    setState(() {
-      _isSyncing = true;
-    });
-
-    try {
-      final isHealthy = await _apiService.checkHealth();
-      if (!isHealthy) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Cannot connect to Flask server at ${_apiService.baseUrl}'),
-              backgroundColor: const Color(0xffb42332),
-            ),
-          );
-        }
-        return;
-      }
-
-      // Fetch latest data from Flask backend
-      final remoteData = await _apiService.fetchSyncData();
-      if (remoteData != null) {
-        final jsonStr = jsonEncode(jsonEncode(remoteData));
-        await _controller.runJavaScript('window.classmateImportBackup($jsonStr);');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Data synced successfully with Flask backend!'),
-              backgroundColor: Color(0xff22854b),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sync failed: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSyncing = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _showBackendSettingsDialog() async {
-    final controller = TextEditingController(text: _apiService.baseUrl);
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Flask Backend Settings'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Enter the URL of your Flask backend server:',
-                style: TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                decoration: const InputDecoration(
-                  labelText: 'Backend Base URL',
-                  hintText: 'http://10.0.2.2:5000 or http://192.168.1.100:5000',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '• Android Emulator: http://10.0.2.2:5000\n'
-                '• iOS / macOS: http://127.0.0.1:5000\n'
-                '• Real Device: http://<your-computer-ip>:5000',
-                style: TextStyle(fontSize: 12, color: Colors.black54),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final url = controller.text.trim();
-                if (url.isNotEmpty) {
-                  setState(() {
-                    _apiService.baseUrl = url;
-                  });
-                  Navigator.pop(context);
-                  await _checkBackendStatus();
-                }
-              },
-              child: const Text('Save & Test'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   Future<void> _handleBack() async {
@@ -306,12 +185,6 @@ class _ClassmateHomeState extends State<ClassmateHome> {
             throw const FormatException('Invalid backup data.');
           }
 
-          // Optionally push backup content to Flask backend
-          final data = jsonDecode(content);
-          if (data is Map<String, dynamic>) {
-            await _apiService.pushSyncData(data);
-          }
-
           await SharePlus.instance.share(
             ShareParams(
               files: [
@@ -332,10 +205,6 @@ class _ClassmateHomeState extends State<ClassmateHome> {
           );
           if (result.isEmpty) return;
           final content = utf8.decode(await result.single.readAsBytes());
-          final data = jsonDecode(content);
-          if (data is Map<String, dynamic>) {
-            await _apiService.pushSyncData(data);
-          }
           await _controller.runJavaScript(
             'window.classmateImportBackup(${jsonEncode(content)});',
           );
@@ -360,74 +229,6 @@ class _ClassmateHomeState extends State<ClassmateHome> {
       },
       child: Scaffold(
         backgroundColor: const Color(0xfff6f7fb),
-        appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(42),
-          child: Container(
-            color: const Color(0xff4a56d2),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                const Icon(Icons.school, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                const Text(
-                  'Classmate',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const Spacer(),
-                Tooltip(
-                  message: _backendConnected
-                      ? 'Flask Backend Connected'
-                      : 'Flask Backend Disconnected',
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _backendConnected ? Colors.green.shade700 : Colors.orange.shade800,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _backendConnected ? Icons.cloud_done : Icons.cloud_off,
-                          color: Colors.white,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _backendConnected ? 'Connected' : 'Offline',
-                          style: const TextStyle(color: Colors.white, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: _isSyncing
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Icon(Icons.sync, color: Colors.white, size: 20),
-                  onPressed: _syncDataWithBackend,
-                  tooltip: 'Sync with Backend',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.settings, color: Colors.white, size: 20),
-                  onPressed: _showBackendSettingsDialog,
-                  tooltip: 'Backend Settings',
-                ),
-              ],
-            ),
-          ),
-        ),
         body: SafeArea(
           child: Stack(
             fit: StackFit.expand,

@@ -1,100 +1,106 @@
-# Classmate · Student Attendance System
+# Classmate
 
-Classmate is a student-only, local-first timetable and attendance tracker. It has no sign-in, backend, teacher tools, or cloud sync. Timetable entries, attendance updates, reminders, and backups are stored in the browser on the device.
+### Your timetable, attendance, and 85% plan — all in one place.
 
-The app also supports an animated light/dark theme, a top navigation bar, full-day attendance celebrations, and 85% attendance warnings. Voluntary bug reports are sent to the configured Formspree form; only the report details and an optional reply email are submitted.
+Classmate is an offline-first student planner for building a weekly routine, recording attendance, and seeing how each subject is tracking against an **85% attendance target**. Add subjects yourself or start from a timetable photo, then review the detected entries before applying them.
 
-## Run and install
+> **Private by default:** The web app saves timetable and attendance data in this browser on this device. There is no sign-in or automatic cloud sync.
 
-The app can be opened directly, but browsers restrict offline installation and system notifications for `file://` pages. For the installable offline app, serve this folder from the device:
+---
 
-1. Install Python if it is not already available.
-2. From this folder, run `python -m http.server 8000`.
-3. Open `http://localhost:8000/` (which redirects to the app) or `http://localhost:8000/app/index.html`.
-4. Install Classmate from the browser menu. Android Chrome can add it to the home screen. On macOS, install it from a desktop browser that supports PWAs, or use Safari's **Add to Dock** on supported macOS versions.
-5. After the first load, the service worker caches the app shell for offline use. The local server can be stopped after that.
+## ✨ What you can do
 
-The app also works from an HTTPS static host. It does not send attendance data to that host; data remains in the browser's local storage. Browser storage is isolated per browser/profile and device, so use **Export backup** and **Import backup** to move data between devices or profiles.
+| Feature | What it does |
+| --- | --- |
+| **Plan your week** | Set subjects against the app’s seven fixed daily class periods. |
+| **Import a timetable photo** | Run OCR on a JPG or other image, review and edit the detected subject grid, then apply it to the weekly timetable. |
+| **Track attendance live** | Mark classes present, absent, or cancelled; cancelled classes are excluded from totals. |
+| **Forecast the 85% target** | See each subject’s attended/held count, current percentage, classes needed to reach 85%, or how many classes can be missed while staying at the target. |
+| **Manage one-time classes** | Add extra classes to a date without changing your regular weekly schedule. |
+| **Use the calendar and reminders** | Browse class dates, get in-app alerts, and celebrate full-attendance days. |
+| **Move your data** | Export a backup and import it in another browser or on another device. |
 
-## Mobile downloads
+The timetable photo reader uses Tesseract.js from a CDN, so **OCR needs an internet connection**. The rest of the web app is designed to work offline after its first load. OCR may misread a photo; check the editable preview before applying it.
 
-Check [GitHub Releases](https://github.com/Vish-nath/smart-attendance/releases) for published mobile builds. Each release should include the version, supported platform, installation notes, and the matching download asset.
+## 🚀 Run the web app
 
-### Android
+From the project root, start a local web server:
 
-Download the Android `.apk` asset from the release and open it on your device to install. Android may ask you to allow your browser or file manager to install apps from that source. Only install APKs published from this repository's official Releases.
+```bash
+python -m http.server 8000
+```
 
-### iPhone and iPad
+Open [http://localhost:8000/app/index.html](http://localhost:8000/app/index.html). The root page at [http://localhost:8000/](http://localhost:8000/) also redirects to the app. After loading once, the service worker caches the app shell for offline use.
 
-A native iOS app is not currently included in this project, so there is no iPhone/iPad build to download from GitHub Releases yet. iPhone and iPad users can use the web app in Safari and choose **Share → Add to Home Screen**. If a native iOS version is published later, its release notes will link to the supported distribution method, such as the App Store or TestFlight.
+To install it, use your browser’s **Install app** or **Add to Home Screen** option. HTTPS hosting is also supported. Browser data is isolated by browser profile and device, so use backups to transfer it.
 
-GitHub Releases are used for Android APK downloads. An iOS `.ipa` is not a generally installable equivalent: iOS apps must be signed and distributed through an Apple-supported method.
+## 📚 Attendance rules
 
-## Project Layout & Architecture
+- The attendance target is **85% per subject**.
+- A subject’s percentage is `present classes ÷ (present + absent classes) × 100`.
+- Cancelled classes do not count toward attended or held totals.
+- The timetable has seven fixed periods: 08:55–09:50, 09:50–10:45, 11:05–12:00, 12:00–13:00, 14:00–14:55, 14:55–15:50, and 15:50–16:45.
+- Sundays and the 1st and 3rd Saturdays are recurring holidays for regular classes. Extra classes can still be added on those dates.
+- Attendance reminders and notifications work while supported by the browser or app. Operating systems may suspend notifications when the app is closed, especially offline.
 
-- `backend/`: Python Flask REST API server with SQLAlchemy and SQLite database.
-- `mobile/`: Flutter cross-platform mobile application (Android APK, iOS, macOS) with Flask API integration and web fallback.
-- `app/index.html`: Responsive PWA web app interface.
-- `service-worker.js`: Offline caching configuration.
+## 📱 Mobile app
 
-## 1. Flask Backend Setup
+The Flutter Android app hosts a bundled copy of the web app in a WebView. Its attendance and timetable data stay in that WebView’s on-device browser storage. Backup export uses the Android share sheet; import opens the device file picker.
 
-The Python Flask backend handles data persistence, timetable records, and attendance sync in a SQLite database (`classmate.db`).
+### Build an Android APK
 
-1. Navigate to `backend/`:
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   python app.py
-   ```
-2. The server will start on `http://localhost:5000` (or `http://0.0.0.0:5000`).
-
-## 2. Mobile App (Flutter)
-
-The Flutter mobile application supports Android, iOS, and macOS, connecting directly to the Flask backend API with offline support.
-
-### Building Android APK
+Install Flutter, then run:
 
 ```bash
 cd mobile
 flutter pub get
 flutter build apk --release
 ```
-The generated APK is located at `mobile/build/app/outputs/flutter-apk/app-release.apk`.
 
-### Building iOS / macOS Mobile Build
+The APK is created at `mobile/build/app/outputs/flutter-apk/app-release.apk`. The local release build uses Flutter’s debug signing setup for testing; publishing requires signing with your own key. See [mobile/README.md](mobile/README.md).
 
-On macOS with Xcode installed:
+The repository includes iOS and macOS Flutter project scaffolding, but the documented mobile packaging flow is Android. For iPhone and iPad, use the web app in Safari and choose **Share → Add to Home Screen**. Check [GitHub Releases](https://github.com/Vish-nath/smart-attendance/releases) for published Android builds.
 
-```bash
-cd mobile
-# For iOS:
-flutter build ios --release
-# Or generate iOS IPA package:
-flutter build ipa --release
+## 🧩 Project map
 
-# For macOS Desktop:
-flutter build macos --release
+```text
+app/index.html          Web app interface and application logic
+app/manifest.webmanifest PWA install metadata
+service-worker.js       Offline app-shell cache and notification clicks
+assets/                 App icons
+mobile/                 Flutter WebView wrapper and platform projects
+backend/                Optional Flask + SQLite sync API
 ```
 
+### Optional Flask backend
 
-## Timetable and attendance
+The web app’s default storage is local browser storage; it does not require the backend. The separate Flask service provides SQLite-backed timetable and attendance endpoints for API experiments and integrations.
 
-- Add only subject names; class times are fixed to the reference timetable:
-  - 08:55–09:50, 09:50–10:45
-  - Tea break 10:45–11:05
-  - 11:05–12:00, 12:00–13:00
-  - Lunch 13:00–14:00
-  - 14:00–14:55, 14:55–15:50, 15:50–16:45
-- Sundays and the 1st and 3rd Saturdays are recurring holidays. Regular timetable entries are skipped on those dates; extra classes may still be added.
-- Mark classes present, absent, or cancelled. Cancelled classes do not contribute to the attended or held totals.
-- Add an extra class by selecting a date, an available fixed period, and a subject name. Attendance totals and the 75% eligibility estimate update immediately after an attendance status is recorded.
-- The calendar, alerts, subject calculations, and timetable work offline.
-- The calendar marks days when every non-cancelled class was attended. A subject below 85% is highlighted on app launch and in the upcoming-class reminder.
-- Use **Report a bug** to send a report through the configured Formspree endpoint. Attendance and timetable records are not included in the report.
+```bash
+cd backend
+python -m venv .venv
+```
 
-## Notifications and limitations
+Activate the environment, then install and start the service:
 
-Allow notifications in **Alerts** to receive class-start and class-finish notifications with quick actions where the browser supports notification actions. The app checks class times while it is open or running in the background. Browsers and operating systems do not guarantee scheduled notifications when a fully offline app has been closed or suspended; open the app to see any pending in-app attendance reminders.
+```bash
+pip install -r requirements.txt
+python app.py
+```
 
-All dates and class times use the device's local time zone. The calendar applies the stated Sunday and 1st/3rd Saturday holiday rule throughout the year.
+The API listens on port `5000` by default. See [backend/README.md](backend/README.md) for device and emulator connection notes.
+
+## 🔐 Data and privacy
+
+- Timetable, attendance, and app preferences are stored locally in browser storage.
+- The app does not upload attendance data as part of timetable-photo OCR; OCR runs in the browser using the external Tesseract.js library and language data.
+- Backups are files that you choose to export and store or share.
+- Voluntary bug reports use the configured Formspree form. The report includes the details you enter and an optional reply email, not your timetable or attendance records.
+
+## 🛠️ Built with
+
+Vanilla HTML, CSS, and JavaScript · Service Workers · Tesseract.js OCR · Flutter · Flask · SQLAlchemy · SQLite
+
+---
+
+Made for keeping classes—and attendance goals—on track. 🎓

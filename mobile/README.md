@@ -1,9 +1,10 @@
-# Classmate for Android
+# Classmate Mobile
 
-This Flutter Android app packages the existing Classmate web interface locally
-in a WebView. The bundled app works offline, and timetable and attendance data
-remain in the WebView's on-device browser storage. Backup export uses the
-Android share sheet, and backup import opens the Android file picker.
+The Flutter app packages the Classmate web experience locally in a WebView.
+Timetables and attendance stay in local WebView storage; backup export and
+import use the platform share sheet and file picker. The Android build targets
+Android 6.0 (API 23) and later. Flutter's macOS runner is available for desktop
+builds when compiled on macOS with Xcode.
 
 ## Build a release APK
 
@@ -14,7 +15,15 @@ flutter pub get
 flutter build apk --release
 ```
 
-The APK is written to
-`build/app/outputs/flutter-apk/app-release.apk`. This local release build uses
-Flutter's debug signing configuration so it can be installed for testing.
-Publishing to Google Play requires signing with your own upload key.
+The APK is written to `build/app/outputs/flutter-apk/app-release.apk`. The
+current local release configuration uses debug signing for installable test
+builds. Sign with a private upload key before publishing to Google Play.
+
+## macOS desktop build
+
+On macOS with Xcode installed:
+
+```sh
+flutter pub get
+flutter build macos --release
+```

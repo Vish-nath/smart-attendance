@@ -1,22 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class ApiService {
   String baseUrl;
 
   ApiService({String? customUrl})
-      : baseUrl = customUrl ?? defaultBaseUrl;
-
-  static String get defaultBaseUrl {
-    if (Platform.isAndroid) {
-      // Android emulator default localhost alias
-      return 'http://10.0.2.2:5000';
-    } else {
-      // iOS simulator, macOS desktop, or web
-      return 'http://127.0.0.1:5000';
-    }
-  }
+      : baseUrl = customUrl ?? 'http://127.0.0.1:5000';
 
   /// Check health status of Flask server
   Future<bool> checkHealth() async {
