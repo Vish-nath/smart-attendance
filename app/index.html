@@ -483,7 +483,8 @@
     <form class="dialog-content" id="report-form" action="https://formspree.io/f/mvkkwkkj" method="POST" accept-charset="UTF-8">
       <h2 id="report-title">Report a bug</h2>
       <p>Describe what went wrong. Your report will be sent to the app maintainer.</p>
-      <div class="field"><label for="report-email">Your email (optional)</label><input id="report-email" name="email" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com"></div>
+      <div class="field"><label for="report-name">Your name</label><input id="report-name" name="name" type="text" maxlength="120" autocomplete="name" placeholder="Your name" required></div>
+      <div class="field"><label for="report-email">Your email</label><input id="report-email" name="email" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com" required></div>
       <div class="field"><label for="report-message">What happened?</label><textarea id="report-message" name="message" rows="5" maxlength="3000" required placeholder="Steps to reproduce the issue and what you expected to happen"></textarea></div>
       <div class="dialog-actions"><button class="button" type="button" data-action="report-close">Cancel</button><button class="button primary" id="report-submit" type="submit">Send report</button></div>
       <p class="hint" id="report-status" role="status" aria-live="polite"></p>
