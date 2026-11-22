@@ -11,12 +11,13 @@
   <style>
     :root {
       color-scheme: light;
-      --bg: #f6f7fb;
-      --surface: #fff;
+      --bg: #f3f5fa;
+      --surface: #ffffff;
       --surface-muted: #f0f2f7;
+      --surface-frosted: rgba(255, 255, 255, 0.65);
       --ink: #192238;
       --muted: #68728a;
-      --line: #e4e7ef;
+      --line: rgba(228, 231, 239, 0.8);
       --brand: #4a56d2;
       --brand-soft: #eceeff;
       --green: #18794e;
@@ -25,7 +26,7 @@
       --amber-soft: #fff3d4;
       --red: #b42332;
       --red-soft: #fdebed;
-      --shadow: 0 8px 26px rgb(34 45 77 / 6%);
+      --shadow: 0 8px 30px rgb(34 45 77 / 8%);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: var(--ink);
       background: var(--bg);
@@ -33,12 +34,13 @@
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
         color-scheme: dark;
-        --bg: #111522;
+        --bg: #0f121d;
         --surface: #191f30;
         --surface-muted: #222a3d;
+        --surface-frosted: rgba(25, 31, 48, 0.65);
         --ink: #edf0fb;
         --muted: #a4acc0;
-        --line: #30384b;
+        --line: rgba(48, 56, 75, 0.8);
         --brand: #a9aeff;
         --brand-soft: #292b50;
         --green: #79d6a5;
@@ -47,17 +49,18 @@
         --amber-soft: #3b3018;
         --red: #ff9aa4;
         --red-soft: #40232a;
-        --shadow: 0 8px 26px rgb(0 0 0 / 14%);
+        --shadow: 0 8px 30px rgb(0 0 0 / 25%);
       }
     }
     :root[data-theme="dark"] {
       color-scheme: dark;
-      --bg: #111522;
+      --bg: #0f121d;
       --surface: #191f30;
       --surface-muted: #222a3d;
+      --surface-frosted: rgba(25, 31, 48, 0.65);
       --ink: #edf0fb;
       --muted: #a4acc0;
-      --line: #30384b;
+      --line: rgba(48, 56, 75, 0.8);
       --brand: #a9aeff;
       --brand-soft: #292b50;
       --green: #79d6a5;
@@ -66,7 +69,7 @@
       --amber-soft: #3b3018;
       --red: #ff9aa4;
       --red-soft: #40232a;
-      --shadow: 0 8px 26px rgb(0 0 0 / 14%);
+      --shadow: 0 8px 30px rgb(0 0 0 / 25%);
     }
     :root[data-theme="light"] { color-scheme: light; }
     * { box-sizing: border-box; }
@@ -75,7 +78,12 @@
       min-height: 100vh;
       margin: 0;
       padding-top: env(safe-area-inset-top, 0);
-      background: var(--bg);
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(circle at 15% 50%, color-mix(in srgb, var(--brand) 8%, transparent) 0%, transparent 50%),
+        radial-gradient(circle at 85% 30%, color-mix(in srgb, var(--green) 8%, transparent) 0%, transparent 50%),
+        radial-gradient(circle at 50% 80%, color-mix(in srgb, var(--amber) 6%, transparent) 0%, transparent 50%);
+      background-attachment: fixed;
       color: var(--ink);
       font-size: 14px;
       line-height: 1.5;
@@ -83,7 +91,7 @@
       transition: background-color .25s ease, color .25s ease;
     }
     .card, .button, .icon-button, .nav-link, .alert-card, .calendar-day, dialog {
-      transition: background-color .25s ease, color .25s ease, border-color .25s ease;
+      transition: background-color .25s ease, color .25s ease, border-color .25s ease, transform .25s cubic-bezier(0.3, 0.7, 0.4, 1.5), box-shadow .25s ease;
     }
     button, input, select { font: inherit; }
     button { color: inherit; }
@@ -102,7 +110,9 @@
       flex-direction: column;
       padding: 26px 16px 18px;
       border-right: 1px solid var(--line);
-      background: var(--surface);
+      background: var(--surface-frosted);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
     }
     .brand { display: flex; align-items: center; gap: 11px; padding: 2px 9px 28px; }
     .brand-mark {
@@ -180,8 +190,8 @@
     .button.small { min-height: 32px; padding: 6px 10px; font-size: 11px; }
     .button:disabled { opacity: .48; cursor: not-allowed; }
     .page { display: none; }
-    .page.active { display: block; animation: appear .2s ease-out; }
-    @keyframes appear { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .page.active { display: block; animation: appear .25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    @keyframes appear { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
     .page-intro { margin: -18px 0 22px; color: var(--muted); }
     .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
     .span-12 { grid-column: span 12; }
@@ -195,9 +205,12 @@
       padding: 19px;
       border: 1px solid var(--line);
       border-radius: 16px;
-      background: var(--surface);
+      background: var(--surface-frosted);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       box-shadow: var(--shadow);
     }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgb(34 45 77 / 10%); border-color: color-mix(in srgb, var(--brand) 25%, var(--line)); }
     .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
     .card-subtitle { margin-top: 3px; color: var(--muted); font-size: 12px; }
     .summary-card { min-height: 154px; }
@@ -343,12 +356,14 @@
       width: min(440px, calc(100vw - 28px));
       padding: 0;
       border: 1px solid var(--line);
-      border-radius: 18px;
-      background: var(--surface);
+      border-radius: 20px;
+      background: var(--surface-frosted);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
       color: var(--ink);
-      box-shadow: 0 18px 60px rgb(0 0 0 / 22%);
+      box-shadow: 0 24px 60px rgb(0 0 0 / 22%);
     }
-    dialog::backdrop { background: rgb(17 22 37 / 54%); backdrop-filter: blur(2px); }
+    dialog::backdrop { background: rgb(17 22 37 / 35%); backdrop-filter: blur(4px); }
     .dialog-content { padding: 22px; }
     .dialog-content h2 { margin-bottom: 5px; font-size: 18px; }
     .dialog-content > p { margin-bottom: 18px; color: var(--muted); font-size: 12px; }
