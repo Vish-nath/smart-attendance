@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -188,9 +189,62 @@ class _ClassmateHomeState extends State<ClassmateHome> {
           await _controller.runJavaScript('window.classmateSetNotificationPermission($granted);');
           break;
         case 'report':
-          await _controller.runJavaScript(
-            'if(window.classmateReportStatus) window.classmateReportStatus(false, "Bug reports are unavailable in this build. Please use the web app.");',
-          );
+          final endpoint = request['endpoint'];
+          final reportData = request['data'];
+          if (endpoint is! String || reportData is! Map<String, dynamic>) {
+            throw const FormatException('Invalid report details.');
+          }
+          try {
+            final uri = Uri.parse(endpoint);
+            if (uri.host != 'formspree.io' || uri.path != '/f/mvkkwkkj') {
+              throw const FormatException('Invalid report endpoint.');
+            }
+            final response = await http
+                .post(
+                  uri,
+                  headers: const {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                  },
+                  body: jsonEncode(reportData),
+                )
+                .timeout(const Duration(seconds: 20));
+            if (response.statusCode >= 200 && response.statusCode < 300) {
+              final responseData = jsonDecode(response.body);
+              if (responseData is Map && responseData['ok'] == false) {
+                final errors = responseData['errors'];
+                final message = errors is List
+                    ? errors.map((item) => item is Map ? item['message'] : null)
+                        .whereType<String>().join(' ')
+                    : 'Formspree did not accept the report.';
+                throw FormatException(message);
+              }
+              await _controller.runJavaScript(
+                'if(window.classmateReportStatus) window.classmateReportStatus(true, "");',
+              );
+            } else {
+              var detail = 'Formspree returned status ${response.statusCode}.';
+              try {
+                final result = jsonDecode(response.body);
+                if (result is Map && result['errors'] is List) {
+                  detail = (result['errors'] as List)
+                      .map((item) => item is Map ? item['message'] : null)
+                      .whereType<String>()
+                      .join(' ');
+                  if (detail.isEmpty) {
+                    detail = 'Formspree returned status ${response.statusCode}.';
+                  }
+                }
+              } catch (_) {}
+              await _controller.runJavaScript(
+                'if(window.classmateReportStatus) window.classmateReportStatus(false, ${jsonEncode(detail)});',
+              );
+            }
+          } catch (error) {
+            await _controller.runJavaScript(
+              'if(window.classmateReportStatus) window.classmateReportStatus(false, ${jsonEncode(error.toString())});',
+            );
+          }
           break;
         case 'export':
           final content = request['content'];
