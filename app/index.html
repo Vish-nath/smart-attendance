@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#f6f7fb">
   <meta name="description" content="A private, offline-first student timetable and attendance tracker.">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -72,7 +75,7 @@
       --shadow: 0 8px 30px rgb(0 0 0 / 25%);
     }
     :root[data-theme="light"] { color-scheme: light; }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
       min-width: 320px;
       min-height: 100vh;
@@ -92,10 +95,15 @@
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
       transition: background-color .25s ease, color .25s ease;
+      touch-action: manipulation;
+      overscroll-behavior-y: none;
     }
-    .card, .button, .icon-button, .nav-link, .alert-card, .calendar-day {
+    .button, .icon-button, .nav-link, .alert-card, .calendar-day, .day-tab {
       transition: background-color .15s ease, color .15s ease, border-color .15s ease, transform .2s cubic-bezier(0.2, 0.8, 0.4, 1);
       transform: translateZ(0);
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
     }
     dialog {
       transition: opacity .2s cubic-bezier(0.2, 0.8, 0.4, 1), transform .2s cubic-bezier(0.2, 0.8, 0.4, 1);
@@ -219,6 +227,8 @@
       border-radius: 16px;
       background: var(--surface);
       box-shadow: var(--shadow);
+      transform: translateZ(0);
+      transition: transform .2s cubic-bezier(0.2, 0.8, 0.4, 1), box-shadow .2s ease, border-color .2s ease;
     }
     .card:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgb(34 45 77 / 8%); border-color: color-mix(in srgb, var(--brand) 25%, var(--line)); }
     .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
