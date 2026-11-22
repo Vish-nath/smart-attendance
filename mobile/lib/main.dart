@@ -196,7 +196,7 @@ class _ClassmateHomeState extends State<ClassmateHome> {
           }
           try {
             final uri = Uri.parse(endpoint);
-            if (uri.host != 'formspree.io' || uri.path != '/f/xldjpanv') {
+            if (uri.host != 'formspree.io' || uri.path != '/f/xwlorglw') {
               throw const FormatException('Invalid report endpoint.');
             }
             final response = await http
