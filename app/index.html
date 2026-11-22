@@ -272,6 +272,9 @@
     }
     .slot-row:first-child { border-top: 0; }
     .timetable-save-row { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .ocr-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .ocr-status { color: var(--muted); font-size: 12px; }
+    .ocr-preview { margin-top: 12px; }
     .button.save-pending { border-color: var(--amber); background: var(--amber); color: #171717; box-shadow: 0 0 0 3px var(--amber-soft); }
     .button.save-idle { opacity: .5; }
     .break-note { display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; padding: 10px 12px; border-radius: 10px; background: var(--surface-muted); color: var(--muted); font-size: 11px; }
@@ -817,6 +820,8 @@
           <input id="subject-${index}" class="subject-entry" type="text" maxlength="80" value="${esc(values[index])}" placeholder="Add subject name" data-slot="${index}" autocomplete="off">
         </div>`).join("");
         return `${pageIntro("Enter subject names for each day. Period timings follow your reference timetable and cannot be changed.")}
+          <section class="card ocr-controls"><div><h2>Import timetable photo</h2><p class="card-subtitle">Choose a clear timetable image. Review detected subjects before applying.</p></div><label class="button soft" for="timetable-image">Choose image</label><input id="timetable-image" type="file" accept="image/*" hidden><span id="ocr-status" class="ocr-status" aria-live="polite"></span></section>
+          <section id="ocr-preview" class="ocr-preview"></section>
           <div class="day-tabs" role="group" aria-label="Choose a weekday">${tabs}</div>
           <section class="card"><div class="card-head"><div><h2>${DAYS[day]}</h2><p class="card-subtitle">Add a subject or leave the period empty.</p></div><span class="status-pill brand">7 fixed periods</span></div>
             <div class="slot-list">${slots}</div>
@@ -827,6 +832,53 @@
             <div class="date-toolbar"><label for="timetable-extra-date" class="sr-only">Choose date for one-time classes</label><input id="timetable-extra-date" class="date-input" type="date" value="${selectedDate}" data-change="timetable-date" aria-label="Choose date for one-time classes"><span class="card-subtitle">${esc(humanDate(selectedDate))}${isHoliday(selectedDate) ? " · Holiday" : ""}</span></div>
             ${(data.extras[selectedDate] || []).length ? `<div class="class-list">${getClasses(selectedDate).filter((item) => item.extra).map((item) => classRow(item, selectedDate, "timetable")).join("")}</div>` : emptyState("No extra classes on this date", "Add one using an available fixed period.")}</section>
           <p class="hint">A recurring timetable is skipped automatically on Sundays and the 1st and 3rd Saturdays. Extra classes can still be added to a holiday.</p>`;
+      }
+
+      function analyzeTimetableImage(file) {
+        if (!file || !file.type.startsWith("image/")) return;
+        const status = $("#ocr-status");
+        if (status) status.textContent = "Loading text recognition…";
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+        script.onload = async () => {
+          try {
+            const result = await Tesseract.recognize(file, "eng", { logger: (message) => {
+              if (status && message.status === "recognizing text") status.textContent = `Reading image… ${Math.round(message.progress * 100)}%`;
+            } });
+            renderOcrPreview(result.data.text);
+          } catch (error) {
+            if (status) status.textContent = `Could not read image: ${error.message}`;
+          }
+        };
+        script.onerror = () => { if (status) status.textContent = "Could not load OCR. Connect to the internet and try again."; };
+        document.head.append(script);
+      }
+
+      function renderOcrPreview(text) {
+        const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        const dayPattern = /\b(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?)\b/i;
+        const dayIndexes = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5 };
+        const detected = Array.from({ length: 6 }, () => Array(7).fill(""));
+        let found = 0;
+        for (const line of lines) {
+          const dayMatch = line.match(dayPattern);
+          if (!dayMatch) continue;
+          const dayIndex = dayIndexes[dayMatch[1].slice(0, 3).toLowerCase()];
+          const remainder = line.replace(dayMatch[0], "").replace(/^\s*[:|\-–]?\s*/, "");
+          const subjects = remainder.split(/\s{2,}|\s*\|\s*|\s*;\s*/).map((value) => value.trim()).filter(Boolean);
+          if (!subjects.length && remainder) subjects.push(...remainder.split(/\s{2,}/).filter(Boolean));
+          subjects.slice(0, 7).forEach((subject, slot) => { detected[dayIndex][slot] = subject.slice(0, 80); found += 1; });
+        }
+        const preview = $("#ocr-preview");
+        const status = $("#ocr-status");
+        if (!found) {
+          status.textContent = "No weekday rows detected. Try a clearer image with day names and separated subject columns.";
+          preview.innerHTML = "";
+          return;
+        }
+        status.textContent = `Detected ${found} subject entries. Check the preview before applying.`;
+        preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Detected timetable</h2><p class="card-subtitle">OCR may misread text. Applying replaces the six weekday timetables.</p></div><button class="button primary" type="button" data-action="apply-ocr">Apply detected timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => subject ? `<p class="subject-detail">${esc(PERIODS[slot].start)} · ${esc(subject)}</p>` : "").join("") || '<p class="subject-detail">No entries detected</p>'}</article>`).join("")}</div></section>`;
+        preview.dataset.timetable = JSON.stringify(detected);
       }
 
       function monthCalendar() {
@@ -1332,6 +1384,22 @@
           render();
         } else if (action === "save-timetable") {
           saveTimetable();
+        } else if (action === "apply-ocr") {
+          const preview = $("#ocr-preview");
+          if (timetableDraft && !confirm("Discard your unsaved edits and apply the detected timetable?")) return;
+          let detected;
+          try { detected = JSON.parse(preview.dataset.timetable || "null"); } catch (_) { detected = null; }
+          if (!Array.isArray(detected) || detected.length !== 6) {
+            showToast("The detected timetable preview is unavailable. Please upload the image again.", true);
+            return;
+          }
+          const previous = data.timetable;
+          data.timetable = [...detected, Array(7).fill("")];
+          if (!saveData()) { data.timetable = previous; return; }
+          timetableDraft = null;
+          preview.dataset.timetable = "";
+          render();
+          showToast("Detected timetable applied and saved.");
         } else if (action === "select-date") {
           selectedDate = button.dataset.date;
           const selected = dateFromKey(selectedDate);
@@ -1409,7 +1477,10 @@
         if (button) handleAction(button);
       });
       document.addEventListener("change", (event) => {
-        if (event.target.matches('[data-change="attendance-date"]') && event.target.value) {
+        if (event.target.id === "timetable-image") {
+          analyzeTimetableImage(event.target.files?.[0]);
+          event.target.value = "";
+        } else if (event.target.matches('[data-change="attendance-date"]') && event.target.value) {
           selectedDate = event.target.value;
           const date = dateFromKey(selectedDate);
           calendarMonth = new Date(date.getFullYear(), date.getMonth(), 1);
