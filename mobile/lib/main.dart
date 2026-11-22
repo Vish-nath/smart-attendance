@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -21,7 +20,9 @@ void main() async {
     android: initializationSettingsAndroid,
     iOS: initializationSettingsDarwin,
   );
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  await flutterLocalNotificationsPlugin.initialize(
+    settings: initializationSettings,
+  );
   runApp(const ClassmateApp());
 }
 
@@ -146,37 +147,25 @@ class _ClassmateHomeState extends State<ClassmateHome> {
           final iosDetails = const DarwinNotificationDetails();
           final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
           await flutterLocalNotificationsPlugin.show(
-            DateTime.now().millisecond,
-            title,
-            body,
-            details,
+            id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+            title: title,
+            body: body,
+            notificationDetails: details,
           );
           break;
         case 'request-notifications':
-          final status = await Permission.notification.request();
-          final granted = status.isGranted;
+          final granted = await flutterLocalNotificationsPlugin
+                  .resolvePlatformSpecificImplementation<
+                    AndroidFlutterLocalNotificationsPlugin
+                  >()
+                  ?.requestNotificationsPermission() ??
+              false;
           await _controller.runJavaScript('window.classmateSetNotificationPermission($granted);');
           break;
         case 'report':
-          final endpoint = request['endpoint'] as String;
-          final reportData = request['data'] as Map<String, dynamic>;
-          try {
-            final response = await http.post(
-              Uri.parse(endpoint),
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-              },
-              body: jsonEncode(reportData),
-            );
-            if (response.statusCode >= 200 && response.statusCode < 300) {
-              await _controller.runJavaScript('if(window.classmateReportStatus) window.classmateReportStatus(true, "");');
-            } else {
-              await _controller.runJavaScript('if(window.classmateReportStatus) window.classmateReportStatus(false, "Server error: ${response.statusCode}");');
-            }
-          } catch (e) {
-            await _controller.runJavaScript('if(window.classmateReportStatus) window.classmateReportStatus(false, "${e.toString().replaceAll('"', '\\"')}");');
-          }
+          await _controller.runJavaScript(
+            'if(window.classmateReportStatus) window.classmateReportStatus(false, "Bug reports are unavailable in this build. Please use the web app.");',
+          );
           break;
         case 'export':
           final content = request['content'];
