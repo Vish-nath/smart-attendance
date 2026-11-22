@@ -54,6 +54,7 @@ class _ClassmateHomeState extends State<ClassmateHome> {
   late final WebViewController _controller;
   bool _isLoading = true;
   String? _loadError;
+  Timer? _loadTimeout;
 
   @override
   void initState() {
@@ -70,6 +71,7 @@ class _ClassmateHomeState extends State<ClassmateHome> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) {
+            _loadTimeout?.cancel();
             if (mounted) {
               setState(() {
                 _isLoading = false;
@@ -79,6 +81,7 @@ class _ClassmateHomeState extends State<ClassmateHome> {
           },
           onWebResourceError: (error) {
             if (error.isForMainFrame == true && mounted) {
+              _loadTimeout?.cancel();
               setState(() {
                 _isLoading = false;
                 _loadError = error.description;
@@ -91,9 +94,19 @@ class _ClassmateHomeState extends State<ClassmateHome> {
   }
 
   Future<void> _loadApp() async {
+    _loadTimeout?.cancel();
+    _loadTimeout = Timer(const Duration(seconds: 20), () {
+      if (mounted && _isLoading) {
+        setState(() {
+          _isLoading = false;
+          _loadError = 'The app page did not finish loading. Check the bundled app files and retry.';
+        });
+      }
+    });
     try {
       await _controller.loadFlutterAsset('assets/web/app/index.html');
     } on Exception catch (error) {
+      _loadTimeout?.cancel();
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -101,6 +114,12 @@ class _ClassmateHomeState extends State<ClassmateHome> {
         });
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _loadTimeout?.cancel();
+    super.dispose();
   }
 
   Future<void> _handleBack() async {

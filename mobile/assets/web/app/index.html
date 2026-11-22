@@ -1479,7 +1479,7 @@
       }
 
       function registerServiceWorker() {
-        if (!("serviceWorker" in navigator) || !["https:", "http:"].includes(location.protocol)) return;
+        if (window.ClassmateNative || !("serviceWorker" in navigator) || !["https:", "http:"].includes(location.protocol)) return;
         navigator.serviceWorker.register("../service-worker.js").then((registration) => {
           serviceWorkerRegistration = registration;
         }).catch((error) => {
