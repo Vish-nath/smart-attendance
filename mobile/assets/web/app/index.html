@@ -867,38 +867,48 @@
         }).catch((error) => { if (status) status.textContent = error.message; });
       }
 
+      function showOcrGrid(detected) {
+        const preview = $("#ocr-preview");
+        if (!preview) return;
+        preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Detected timetable</h2><p class="card-subtitle">Check and correct the extracted subjects, then apply them.</p></div><button class="button primary" type="button" data-action="apply-ocr">Apply detected timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => `<label class="sr-only" for="ocr-${dayIndex}-${slot}">${day} period ${slot + 1}</label><input id="ocr-${dayIndex}-${slot}" class="ocr-entry" data-day="${dayIndex}" data-slot="${slot}" maxlength="80" value="${esc(subject)}" placeholder="${esc(PERIODS[slot].start)} · empty period">`).join("")}</article>`).join("")}</div></section>`;
+      }
+
       function renderOcrPreview(text) {
         if (Array.isArray(text)) {
-          const detected = text;
-          const preview = $("#ocr-preview");
-          if (!preview) return;
-          preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Detected timetable</h2><p class="card-subtitle">Review and edit the subjects before applying.</p></div><button class="button primary" type="button" data-action="apply-ocr">Apply detected timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => `<label class="sr-only" for="ocr-${dayIndex}-${slot}">${day} period ${slot + 1}</label><input id="ocr-${dayIndex}-${slot}" class="ocr-entry" data-day="${dayIndex}" data-slot="${slot}" maxlength="80" value="${esc(subject)}" placeholder="${esc(PERIODS[slot].start)} · empty period">`).join("")}</article>`).join("")}</div></section>`;
+          showOcrGrid(text);
           return;
         }
         const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
         const dayPattern = /\b(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?)\b/i;
         const dayIndexes = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5 };
         const detected = Array.from({ length: 6 }, () => Array(7).fill(""));
-        let found = 0;
+        let activeDay = -1;
         for (const line of lines) {
-          const dayMatch = line.match(dayPattern);
-          if (!dayMatch) continue;
-          const dayIndex = dayIndexes[dayMatch[1].slice(0, 3).toLowerCase()];
-          const remainder = line.replace(dayMatch[0], "").replace(/^\s*[:|\-–]?\s*/, "");
-          const subjects = remainder.split(/\s{2,}|\s*\|\s*|\s*;\s*/).map((value) => value.trim()).filter(Boolean);
-          if (!subjects.length && remainder) subjects.push(...remainder.split(/\s{2,}/).filter(Boolean));
-          subjects.slice(0, 7).forEach((subject, slot) => { detected[dayIndex][slot] = subject.slice(0, 80); found += 1; });
+          const cells = line.split(/\t+|\s{2,}|\s*\|\s*/).map((cell) => cell.trim()).filter(Boolean);
+          for (let index = 0; index < cells.length; index += 1) {
+            const dayMatch = cells[index].match(dayPattern);
+            if (!dayMatch) continue;
+            activeDay = dayIndexes[dayMatch[1].slice(0, 3).toLowerCase()];
+            cells[index] = cells[index].replace(dayMatch[0], "").replace(/^\s*[:\-–]?\s*/, "");
+            if (!cells[index]) cells.splice(index, 1);
+            break;
+          }
+          if (activeDay < 0) continue;
+          const subjects = cells.filter((cell) => cell && !/^(time|period|subject|break|lunch|tea)$/i.test(cell));
+          subjects.slice(0, 7).forEach((subject, slot) => { detected[activeDay][slot] = subject.slice(0, 80); });
         }
+        const found = detected.flat().filter(Boolean).length;
         const preview = $("#ocr-preview");
         const status = $("#ocr-status");
         if (!found) {
-          status.textContent = "No weekday rows detected. Try a clearer image with day names and separated subject columns.";
-          preview.innerHTML = `<section class="card"><h2>Review recognized text</h2><p class="card-subtitle">The image was read, but weekday rows were not identified. Check the text and enter subjects manually in the timetable below.</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0 0;color:var(--muted)">${esc(text.slice(0, 6000))}</pre></section>`;
+          status.textContent = "OCR could not map text to days. Fill in the grid below, then apply it.";
+          ocrTimetableDraft = detected;
+          showOcrGrid(detected);
           return;
         }
         status.textContent = `Detected ${found} subject entries. Check the preview before applying.`;
         ocrTimetableDraft = detected;
-        preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Detected timetable</h2><p class="card-subtitle">OCR may misread text. Review and edit the subjects before applying.</p></div><button class="button primary" type="button" data-action="apply-ocr">Apply detected timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => `<label class="sr-only" for="ocr-${dayIndex}-${slot}">${day} period ${slot + 1}</label><input id="ocr-${dayIndex}-${slot}" class="ocr-entry" data-day="${dayIndex}" data-slot="${slot}" maxlength="80" value="${esc(subject)}" placeholder="${esc(PERIODS[slot].start)} · empty period">`).join("")}</article>`).join("")}</div></section>`;
+        showOcrGrid(detected);
       }
 
       function monthCalendar() {
