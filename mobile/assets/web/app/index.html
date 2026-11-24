@@ -863,8 +863,8 @@
 
       function timetablePage() {
         const day = selectedDay;
-        const values = timetableDraft || data.timetable[day];
-        const dirty = values.some((value, index) => value !== data.timetable[day][index]);
+        const values = timetableDraft ? timetableDraft[day] : data.timetable[day];
+        const dirty = timetableDraft ? timetableDraft.some((dayArr, dIdx) => dayArr.some((val, sIdx) => val !== data.timetable[dIdx][sIdx])) : false;
         const tabs = DAYS.map((name, index) =>
           `<button class="day-tab" type="button" aria-pressed="${index === day}" data-action="select-weekday" data-day="${index}">${SHORT_DAYS[index]}</button>`
         ).join("");
@@ -1283,15 +1283,15 @@
 
       function saveTimetable() {
         if (!timetableDraft) return;
-        const old = data.timetable[selectedDay];
-        data.timetable[selectedDay] = timetableDraft.map((subject) => subject.trim());
+        const old = data.timetable;
+        data.timetable = timetableDraft.map((dayArr) => dayArr.map((subject) => subject.trim()));
         if (!saveData()) {
-          data.timetable[selectedDay] = old;
+          data.timetable = old;
           return;
         }
         timetableDraft = null;
         render();
-        showToast(`Timetable saved for ${DAYS[selectedDay]}.`);
+        showToast(`Timetable saved.`);
       }
 
       function triggerNativeNotification(item, phase) {
@@ -1340,7 +1340,7 @@
           actions: [
             { action: "present", title: "Present" },
             { action: "absent", title: "Absent" },
-            { action: "cancel", title: "Class cancelled" }
+            { action: "cancelled", title: "Class cancelled" }
           ]
         };
         if (serviceWorkerRegistration) {
@@ -1455,7 +1455,8 @@
       }
 
       function handleNotificationAction(message) {
-        const { id, date, action, slot, subject } = message;
+        let { id, date, action, slot, subject } = message;
+        if (action === "cancel") action = "cancelled";
         if (!id || !date || !action) return;
         selectedDate = date;
         const selected = dateFromKey(date);
@@ -1490,8 +1491,6 @@
         } else if (action === "celebration-close") {
           $("#celebration-dialog").close();
         } else if (action === "select-weekday") {
-          if (timetableDraft && !confirm("Discard unsaved timetable changes?")) return;
-          timetableDraft = null;
           selectedDay = Number(button.dataset.day);
           render();
         } else if (action === "save-timetable") {
@@ -1500,28 +1499,21 @@
           setWholeDay(button.dataset.date, button.dataset.status);
         } else if (action === "copy-timetable") {
           const target = Number(button.dataset.target), source = Number(button.dataset.source);
-          if (timetableDraft && !confirm("Discard unsaved timetable changes?")) return;
-          timetableDraft = null;
-          const previous = data.timetable[target];
-          data.timetable[target] = [...data.timetable[source]];
-          if (!saveData()) { data.timetable[target] = previous; return; }
+          if (!timetableDraft) timetableDraft = data.timetable.map(day => [...day]);
+          timetableDraft[target] = [...timetableDraft[source]];
           selectedDay = target;
           render();
-          showToast(`${DAYS[source]} timetable copied to ${DAYS[target]}.`);
+          showToast(`${DAYS[source]} timetable copied to ${DAYS[target]}. Click 'Save timetable' to keep changes.`);
         } else if (action === "apply-ocr") {
           if (timetableDraft && !confirm("Discard your unsaved edits and apply the detected timetable?")) return;
           if (!Array.isArray(ocrTimetableDraft) || ocrTimetableDraft.length !== 6) {
             showToast("The detected timetable preview is unavailable. Please upload the image again.", true);
             return;
           }
-          const detected = ocrTimetableDraft.map((day) => day.map((subject) => String(subject).trim()));
-          const previous = data.timetable;
-          data.timetable = detected;
-          if (!saveData()) { data.timetable = previous; return; }
-          timetableDraft = null;
+          timetableDraft = ocrTimetableDraft.map((day) => day.map((subject) => String(subject).trim()));
           ocrTimetableDraft = null;
           render();
-          showToast("Detected timetable applied and saved.");
+          showToast("Detected timetable applied. Please review and click 'Save timetable'.");
         } else if (action === "select-date") {
           selectedDate = button.dataset.date;
           const selected = dateFromKey(selectedDate);
@@ -1650,11 +1642,11 @@
           return;
         }
         if (!event.target.matches(".subject-entry")) return;
-        if (!timetableDraft) timetableDraft = [...data.timetable[selectedDay]];
-        timetableDraft[Number(event.target.dataset.slot)] = event.target.value;
+        if (!timetableDraft) timetableDraft = data.timetable.map(d => [...d]);
+        timetableDraft[selectedDay][Number(event.target.dataset.slot)] = event.target.value;
         const saveButton = $('[data-action="save-timetable"]');
         if (!saveButton) return;
-        const dirty = timetableDraft.some((value, index) => value !== data.timetable[selectedDay][index]);
+        const dirty = timetableDraft.some((dayArr, dIdx) => dayArr.some((val, sIdx) => val !== data.timetable[dIdx][sIdx]));
         saveButton.disabled = !dirty;
         saveButton.classList.toggle("save-pending", dirty);
         saveButton.classList.toggle("save-idle", !dirty);

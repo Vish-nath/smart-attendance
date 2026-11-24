@@ -204,7 +204,7 @@ class _ClassmateHomeState extends State<ClassmateHome> {
             actions: <AndroidNotificationAction>[
               AndroidNotificationAction('present', 'Present'),
               AndroidNotificationAction('absent', 'Absent'),
-              AndroidNotificationAction('cancel', 'Class cancelled'),
+              AndroidNotificationAction('cancelled', 'Class cancelled'),
             ],
           );
           final iosDetails = const DarwinNotificationDetails();
