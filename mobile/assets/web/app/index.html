@@ -560,7 +560,10 @@
         timetable: DAYS.map(() => Array(7).fill("")),
         attendance: {},
         extras: {},
-        notified: {}
+        notified: {},
+        timetableOverrides: {},
+        dayOverrides: {},
+        dayUndo: {}
       });
 
       let data;
@@ -630,6 +633,10 @@
           Array.isArray(value.timetable) && value.timetable.length === 6 &&
           value.timetable.every((day) => Array.isArray(day) && day.length === 7 &&
             day.every((subject) => typeof subject === "string" && subject.length <= 80)) &&
+          (value.timetableOverrides === undefined || (value.timetableOverrides && typeof value.timetableOverrides === "object" && !Array.isArray(value.timetableOverrides) && Object.entries(value.timetableOverrides).every(([day, source]) => Number(day) >= 0 && Number(day) < 6 && Number.isInteger(source) && source >= 0 && source < 6))) &&
+          (value.dayOverrides === undefined || (value.dayOverrides && typeof value.dayOverrides === "object" && !Array.isArray(value.dayOverrides) && Object.values(value.dayOverrides).every((status) => ["absent", "cancelled"].includes(status)))) &&
+          (value.dayUndo === undefined || (value.dayUndo && typeof value.dayUndo === "object" && !Array.isArray(value.dayUndo))) &&
+          (value.saturdayHolidayClasses === undefined || typeof value.saturdayHolidayClasses === "boolean") &&
           value.attendance && typeof value.attendance === "object" && !Array.isArray(value.attendance) &&
           Object.values(value.attendance).every((record) =>
             record && typeof record.date === "string" && typeof record.subject === "string" &&
@@ -648,6 +655,9 @@
           if (saved === null) return newData();
           const parsed = JSON.parse(saved);
           if (!validData(parsed)) throw new Error("The saved data does not match the supported format.");
+          if (!parsed.timetableOverrides) parsed.timetableOverrides = {};
+          if (!parsed.dayOverrides) parsed.dayOverrides = {};
+          if (!parsed.dayUndo) parsed.dayUndo = {};
           return parsed;
         } catch (error) {
           storageError = `Could not read your saved attendance data: ${error.message}`;
@@ -679,7 +689,8 @@
 
       function getClasses(date) {
         const weekday = weekdayIndex(date);
-        const scheduled = weekday < 0 || isHoliday(date) ? [] : data.timetable[weekday]
+        const sourceDay = weekday === 5 && data.timetableOverrides[5] !== undefined ? data.timetableOverrides[5] : weekday;
+        const scheduled = weekday < 0 || (isHoliday(date) && !(weekday === 5 && data.saturdayHolidayClasses && data.timetableOverrides[5] !== undefined)) ? [] : data.timetable[sourceDay]
           .map((subject, slot) => subject.trim() ? {
             id: scheduledId(date, slot),
             slot,
@@ -699,7 +710,10 @@
         const savedClasses = Object.entries(data.attendance)
           .filter(([id, record]) => record.date === date && id.startsWith(`class:${date}:`) && !knownIds.has(id))
           .map(([id, record]) => ({ id, slot: record.slot, subject: record.subject, extra: false, status: record.status }));
-        return [...scheduled, ...extras, ...savedClasses].sort((a, b) => a.slot - b.slot || Number(a.extra) - Number(b.extra));
+        const all = [...scheduled, ...extras, ...savedClasses].sort((a, b) => a.slot - b.slot || Number(a.extra) - Number(b.extra));
+        const dayStatus = data.dayOverrides?.[date];
+        if (dayStatus) all.forEach((item) => { item.status = dayStatus; });
+        return all;
       }
 
       function hasFullAttendance(date) {
@@ -819,30 +833,17 @@
       }
 
       function dashboardPage() {
-        const total = totalStats();
         const stats = subjectStats();
         const todayClasses = getClasses(todayKey());
-        const percent = total.percent === null ? "—" : `${total.percent.toFixed(1)}%`;
-        const thresholdState = total.percent === null ? "new" : total.percent < THRESHOLD ? "danger" : total.percent < THRESHOLD + 5 ? "warn" : "good";
         const nextHeading = isHoliday(todayKey()) ? "Today · Holiday" : `Today's classes · ${humanDate(todayKey(), { month: "short", day: "numeric" })}`;
         const setup = allSubjects().length ? "" : `<div class="alert-card"><span class="alert-symbol">✦</span><div class="alert-body"><h3>Set up your weekly timetable</h3><p>Add subject names to fixed class periods. Your data stays on this device.</p><a class="button small soft" href="#timetable" style="margin-top:9px">Set up timetable</a></div></div>`;
         const promptList = reminderPrompts();
         return `${setup}<div class="grid">
-          <article class="card summary-card span-4"><div class="summary-kicker">Overall attendance</div><div class="summary-value">${percent}</div>
-            <div class="summary-detail">${total.attended} present out of ${total.held} held classes</div>
-            ${total.percent === null ? "" : `<div class="progress"><span style="width:${Math.min(100, total.percent)}%;background:var(--${thresholdState === "danger" ? "red" : thresholdState === "warn" ? "amber" : "green"})"></span></div>`}
-          </article>
-          <article class="card summary-card span-4"><div class="summary-kicker">Attendance goal</div><div class="summary-value">${THRESHOLD}%</div>
-            <div class="summary-detail">${stats.filter((item) => item.state === "danger").length} subject${stats.filter((item) => item.state === "danger").length === 1 ? "" : "s"} below your goal</div>
-          </article>
-          <article class="card summary-card span-4"><div class="summary-kicker">Classes today</div><div class="summary-value">${todayClasses.length}</div>
-            <div class="summary-detail">${isHoliday(todayKey()) ? "Enjoy your day off." : todayClasses.filter((item) => item.status === "present" || item.status === "absent").length + " marked · " + (todayClasses.length - todayClasses.filter((item) => item.status).length) + " to update"}</div>
-          </article>
+          <section class="card span-12"><div class="card-head"><div><h2>Subject attendance</h2><p class="card-subtitle">Attendance percentages and attended classes by subject</p></div><a class="button small" href="#attendance">View attendance</a></div>
+            ${stats.length ? `<div class="subject-grid">${stats.map((item) => `<article class="subject-card"><div class="subject-title-row"><div class="subject-name">${esc(item.subject)}</div><span class="status-pill ${item.state}">${item.percent === null ? "—" : item.percent.toFixed(1) + "%"}</span></div><div class="subject-percent"><small>${item.attended} classes attended${item.held ? ` out of ${item.held}` : ""}</small></div></article>`).join("")}</div>` : emptyState("Your subjects will show up here", "Add names in your timetable to get started.")}</section>
           ${promptList.length ? `<section class="span-12"><div class="section-heading"><h2>Needs your attention</h2><a class="button small" href="#alerts">All alerts</a></div>${promptList.map((item) => promptCard(item)).join("")}</section>` : ""}
           <section class="card span-7"><div class="card-head"><div><h2>${esc(nextHeading)}</h2><p class="card-subtitle">Your fixed-period schedule</p></div><a class="button small" href="#attendance">Update attendance</a></div>
             ${todayScheduleHtml()}</section>
-          <section class="card span-5"><div class="card-head"><div><h2>Subject overview</h2><p class="card-subtitle">Attendance is calculated from your updates</p></div><a class="button small" href="#attendance">View all</a></div>
-            ${stats.length ? `<div class="class-list">${stats.slice(0, 5).map((item) => `<div class="class-row"><div class="class-info"><div class="class-title">${esc(item.subject)}</div><div class="class-meta">${item.held ? `${item.attended}/${item.held} attended` : "No attendance yet"}</div></div><span class="status-pill ${item.state}">${item.percent === null ? "—" : item.percent.toFixed(0) + "%"}</span></div>`).join("")}</div>` : emptyState("Your subjects will show up here", "Add names in your timetable to get started.")}</section>
         </div>`;
       }
 
@@ -850,9 +851,11 @@
         const classes = getClasses(selectedDate);
         const stats = subjectStats();
         const holiday = isHoliday(selectedDate);
+        const wholeDayStatus = data.dayOverrides?.[selectedDate] || "";
         return `${pageIntro("Mark each class as present, absent or cancelled. Cancelled classes are excluded from your attendance calculation.")}
           <div class="date-toolbar"><div><h2>${esc(humanDate(selectedDate))}</h2><p class="card-subtitle">${holiday ? "Holiday · no regular classes" : "Daily class record"}</p></div><input class="date-input" type="date" value="${selectedDate}" data-change="attendance-date" aria-label="Choose attendance date"></div>
           <section class="card"><div class="card-head"><div><h2>Classes for this date</h2><p class="card-subtitle">Timings are fixed; only subject names can be changed.</p></div><button class="button small soft" type="button" data-action="extra-open" data-date="${selectedDate}">＋ Extra class</button></div>
+            ${classes.length ? `<div class="class-actions" style="justify-content:flex-start;margin-bottom:14px"><button class="button small danger" type="button" data-action="whole-day" data-status="absent" data-date="${selectedDate}">Mark whole day absent</button><button class="button small" type="button" data-action="whole-day" data-status="cancelled" data-date="${selectedDate}">Cancel whole day</button>${wholeDayStatus ? `<button class="button small soft" type="button" data-action="whole-day" data-status="clear" data-date="${selectedDate}">Undo whole-day action</button>` : ""}</div>` : ""}
             ${classes.length ? `<div class="class-list">${classes.map((item) => classRow(item, selectedDate)).join("")}</div>` : emptyState(holiday ? "It's a holiday" : "No classes scheduled", holiday ? "Sundays and the 1st and 3rd Saturdays are holidays." : "Choose another date or add an extra class for this date.")}</section>
           <div class="section-heading"><div><h2>Subject attendance</h2><p class="card-subtitle">Goal: ${THRESHOLD}% for each subject · cancelled classes do not count</p></div></div>
           ${stats.length ? `<div class="subject-grid">${stats.map(subjectCard).join("")}</div>` : emptyState("No subjects yet", 'Add your subjects in <a href="#timetable">Timetable</a> to begin tracking.')}`;
@@ -875,6 +878,7 @@
           <section id="ocr-preview" class="ocr-preview"></section>
           <div class="day-tabs" role="group" aria-label="Choose a weekday">${tabs}</div>
           <section class="card"><div class="card-head"><div><h2>${DAYS[day]}</h2><p class="card-subtitle">Add a subject or leave the period empty.</p></div><span class="status-pill brand">7 fixed periods</span></div>
+            <div class="date-toolbar"><label for="copy-target">Copy this timetable to</label><select id="copy-target">${DAYS.map((name,index)=>`<option value="${index}" ${index===(day===0?1:0)?"selected":""}>${name}</option>`).join("")}</select><button class="button small soft" type="button" data-action="copy-timetable" data-source="${day}" data-target="${day===0?1:0}">Copy</button></div>
             <div class="slot-list">${slots}</div>
             <div class="timetable-save-row"><button class="button primary ${dirty ? "save-pending" : "save-idle"}" type="button" data-action="save-timetable" ${dirty ? "" : "disabled"}>Save timetable</button></div>
             <div class="break-note"><span aria-hidden="true">☕</span><span>Tea break 10:45–11:05 · Lunch 13:00–14:00</span></div>
@@ -882,7 +886,8 @@
           <section class="card" style="margin-top:16px"><div class="card-head"><div><h2>One-time classes</h2><p class="card-subtitle">Extra classes for a specific date; the weekly timetable stays unchanged.</p></div><button class="button small soft" type="button" data-action="extra-open" data-date="${selectedDate}">＋ Add extra</button></div>
             <div class="date-toolbar"><label for="timetable-extra-date" class="sr-only">Choose date for one-time classes</label><input id="timetable-extra-date" class="date-input" type="date" value="${selectedDate}" data-change="timetable-date" aria-label="Choose date for one-time classes"><span class="card-subtitle">${esc(humanDate(selectedDate))}${isHoliday(selectedDate) ? " · Holiday" : ""}</span></div>
             ${(data.extras[selectedDate] || []).length ? `<div class="class-list">${getClasses(selectedDate).filter((item) => item.extra).map((item) => classRow(item, selectedDate, "timetable")).join("")}</div>` : emptyState("No extra classes on this date", "Add one using an available fixed period.")}</section>
-          <p class="hint">A recurring timetable is skipped automatically on Sundays and the 1st and 3rd Saturdays. Extra classes can still be added to a holiday.</p>`;
+          <section class="card" style="margin-top:16px"><h2>Repeat a weekday timetable</h2><p class="card-subtitle">Choose the timetable used on Saturdays. This can make Saturday an instructional day even on a holiday Saturday.</p><div class="date-toolbar" style="margin-top:12px"><label for="saturday-source">Saturday uses</label><select id="saturday-source" data-change="saturday-source"><option value="">Regular Saturday timetable</option>${DAYS.slice(0,5).map((name,index)=>`<option value="${index}" ${data.timetableOverrides[5]===index?"selected":""}>${name} timetable</option>`).join("")}</select></div><label class="settings-row"><span><strong>Use timetable on 1st and 3rd Saturdays too</strong><p>Overrides the regular Saturday holiday rule.</p></span><input type="checkbox" data-change="saturday-holidays" ${data.saturdayHolidayClasses?"checked":""}></label></section>
+          <p class="hint">Sundays remain holidays. Saturday can use its own timetable or repeat a weekday timetable.</p>`;
       }
 
       function analyzeTimetableImage(file) {
@@ -1142,6 +1147,8 @@
       }
 
       function setAttendance(id, date, subject, slot, status, extra = false) {
+        playSound(status === "present" ? "present" : status === "absent" ? "absent" : "notify");
+        if (data.dayOverrides?.[date]) { delete data.dayOverrides[date]; delete data.dayUndo?.[date]; }
         const wasFullAttendance = hasFullAttendance(date);
         data.attendance[id] = { date, subject, slot, status, extra };
         if (!saveData()) return;
@@ -1159,6 +1166,49 @@
         render();
         showToast("Cancellation undone.");
         if (date && !wasFullAttendance && hasFullAttendance(date)) showFullDayCelebration(date);
+      }
+
+      function setWholeDay(date, status) {
+        const before = JSON.stringify(data);
+        if (status === "clear") {
+          delete data.dayOverrides[date];
+          const snapshot = data.dayUndo[date] || {};
+          getClasses(date).forEach((item) => {
+            if (snapshot[item.id]) data.attendance[item.id] = snapshot[item.id];
+            else delete data.attendance[item.id];
+          });
+          delete data.dayUndo[date];
+        }
+        else {
+          data.dayUndo[date] = Object.fromEntries(getClasses(date).map((item) => [item.id, data.attendance[item.id]]).filter(([, record]) => record));
+          data.dayOverrides[date] = status;
+          getClasses(date).forEach((item) => {
+            data.attendance[item.id] = { date, subject: item.subject, slot: item.slot, status, extra: item.extra };
+          });
+        }
+        if (!saveData()) { data = JSON.parse(before); return; }
+        playSound(status === "absent" ? "absent" : "notify");
+        render();
+        showToast(status === "clear" ? "Whole-day action undone." : status === "absent" ? "All classes marked absent." : "All classes cancelled and excluded from attendance.");
+      }
+
+      let audioContext;
+      function playSound(kind) {
+        try {
+          const Context = window.AudioContext || window.webkitAudioContext;
+          if (!Context) return;
+          audioContext ||= new Context();
+          if (audioContext.state === "suspended") audioContext.resume();
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          oscillator.type = "sine";
+          oscillator.frequency.value = kind === "absent" ? 310 : kind === "present" ? 880 : 660;
+          gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.16, audioContext.currentTime + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + (kind === "absent" ? 0.24 : 0.16));
+          oscillator.connect(gain); gain.connect(audioContext.destination);
+          oscillator.start(); oscillator.stop(audioContext.currentTime + 0.25);
+        } catch (_) { /* Audio is optional when the device blocks playback. */ }
       }
 
       function findClass(id, date) {
@@ -1245,6 +1295,7 @@
       }
 
       function triggerNativeNotification(item, phase) {
+    playSound("notify");
     if (window.ClassmateNative) {
       const key = `${item.id}:${phase}`;
       if (data.notified[key]) return;
@@ -1445,6 +1496,18 @@
           render();
         } else if (action === "save-timetable") {
           saveTimetable();
+        } else if (action === "whole-day") {
+          setWholeDay(button.dataset.date, button.dataset.status);
+        } else if (action === "copy-timetable") {
+          const target = Number(button.dataset.target), source = Number(button.dataset.source);
+          if (timetableDraft && !confirm("Discard unsaved timetable changes?")) return;
+          timetableDraft = null;
+          const previous = data.timetable[target];
+          data.timetable[target] = [...data.timetable[source]];
+          if (!saveData()) { data.timetable[target] = previous; return; }
+          selectedDay = target;
+          render();
+          showToast(`${DAYS[source]} timetable copied to ${DAYS[target]}.`);
         } else if (action === "apply-ocr") {
           if (timetableDraft && !confirm("Discard your unsaved edits and apply the detected timetable?")) return;
           if (!Array.isArray(ocrTimetableDraft) || ocrTimetableDraft.length !== 6) {
@@ -1536,7 +1599,21 @@
         if (button) handleAction(button);
       });
       document.addEventListener("change", (event) => {
-        if (event.target.id === "timetable-image") {
+        if (event.target.id === "copy-target") {
+          const button = $('[data-action="copy-timetable"]');
+          if (button) button.dataset.target = event.target.value;
+        } else if (event.target.matches('[data-change="saturday-holidays"]')) {
+          const old = data.saturdayHolidayClasses;
+          data.saturdayHolidayClasses = event.target.checked;
+          if (!saveData()) data.saturdayHolidayClasses = old;
+          render();
+        } else if (event.target.matches('[data-change="saturday-source"]')) {
+          const old = data.timetableOverrides[5];
+          if (event.target.value === "") delete data.timetableOverrides[5];
+          else data.timetableOverrides[5] = Number(event.target.value);
+          if (!saveData()) { if (old === undefined) delete data.timetableOverrides[5]; else data.timetableOverrides[5] = old; }
+          render();
+        } else if (event.target.id === "timetable-image") {
           const file = event.target.files?.[0];
           if (file) analyzeTimetableImage(file);
           event.target.value = "";

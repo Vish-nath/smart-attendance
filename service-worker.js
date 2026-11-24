@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "classmate-shell-v8";
+const CACHE_NAME = "classmate-shell-v9";
 const APP_PATH = "app/index.html";
 const ASSETS = [
   `./${APP_PATH}`,
