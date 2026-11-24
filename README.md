@@ -13,14 +13,13 @@ Classmate is an offline-first student planner for building a weekly routine, rec
 | Feature | What it does |
 | --- | --- |
 | **Plan your week** | Set subjects against the app’s seven fixed daily class periods. |
-| **Import a timetable photo** | Run OCR on a JPG or other image, review and edit the detected subject grid, then apply it to the weekly timetable. |
 | **Track attendance live** | Mark classes present, absent, or cancelled; cancelled classes are excluded from totals. |
 | **Forecast the 85% target** | See each subject’s attended/held count, current percentage, classes needed to reach 85%, or how many classes can be missed while staying at the target. |
 | **Manage one-time classes** | Add extra classes to a date without changing your regular weekly schedule. |
 | **Use the calendar and reminders** | Browse class dates, get in-app alerts, and celebrate full-attendance days. |
 | **Move your data** | Export a backup and import it in another browser or on another device. |
 
-The timetable photo reader uses Tesseract.js from a CDN, so **OCR needs an internet connection**. The rest of the web app is designed to work offline after its first load. OCR may misread a photo; check the editable preview before applying it.
+The web app is designed to work offline after its first load.
 
 ## 🚀 Run the web app
 
@@ -93,13 +92,12 @@ The API listens on port `5000` by default. See [backend/README.md](backend/READM
 ## 🔐 Data and privacy
 
 - Timetable, attendance, and app preferences are stored locally in browser storage.
-- The app does not upload attendance data as part of timetable-photo OCR; OCR runs in the browser using the external Tesseract.js library and language data.
 - Backups are files that you choose to export and store or share.
 - Voluntary bug reports use the configured Formspree form. The report includes the details you enter and an optional reply email, not your timetable or attendance records.
 
 ## 🛠️ Built with
 
-Vanilla HTML, CSS, and JavaScript · Service Workers · Tesseract.js OCR · Flutter · Flask · SQLAlchemy · SQLite
+Vanilla HTML, CSS, and JavaScript · Service Workers · Flutter · Flask · SQLAlchemy · SQLite
 
 ---
 

@@ -306,9 +306,6 @@
     }
     .slot-row:first-child { border-top: 0; }
     .timetable-save-row { display: flex; justify-content: flex-end; margin-top: 14px; }
-    .ocr-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
-    .ocr-status { color: var(--muted); font-size: 12px; }
-    .ocr-preview { margin-top: 12px; }
     .button.save-pending { border-color: var(--amber); background: var(--amber); color: #171717; box-shadow: 0 0 0 3px var(--amber-soft); }
     .button.save-idle { opacity: .5; }
     .break-note { display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; padding: 10px 12px; border-radius: 10px; background: var(--surface-muted); color: var(--muted); font-size: 11px; }
@@ -515,7 +512,6 @@
       const THRESHOLD = 85;
       const REMINDER_THRESHOLD = THRESHOLD;
       let timetableDraft = null;
-      let ocrTimetableDraft = null;
       const THEME_KEY = "classmate.theme.v1";
       const REPORT_ENDPOINT = "https://formspree.io/f/xwlorglw";
       const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -874,8 +870,6 @@
           <input id="subject-${index}" class="subject-entry" type="text" maxlength="80" value="${esc(values[index])}" placeholder="Add subject name" data-slot="${index}" autocomplete="off">
         </div>`).join("");
         return `${pageIntro("Enter subject names for each day. Period timings follow your reference timetable and cannot be changed.")}
-          <section class="card ocr-controls"><div><h2>Import timetable photo</h2><p class="card-subtitle">Choose a clear timetable image. Review detected subjects before applying.</p></div><label class="button soft" for="timetable-image">Choose image</label><input id="timetable-image" type="file" accept="image/*" hidden><span id="ocr-status" class="ocr-status" aria-live="polite"></span></section>
-          <section id="ocr-preview" class="ocr-preview"></section>
           <div class="day-tabs" role="group" aria-label="Choose a weekday">${tabs}</div>
           <section class="card"><div class="card-head"><div><h2>${DAYS[day]}</h2><p class="card-subtitle">Add a subject or leave the period empty.</p></div><span class="status-pill brand">7 fixed periods</span></div>
             <div class="date-toolbar"><label for="copy-target">Copy this timetable to</label><select id="copy-target">${DAYS.map((name,index)=>`<option value="${index}" ${index===(day===0?1:0)?"selected":""}>${name}</option>`).join("")}</select><button class="button small soft" type="button" data-action="copy-timetable" data-source="${day}" data-target="${day===0?1:0}">Copy</button></div>
@@ -888,105 +882,6 @@
             ${(data.extras[selectedDate] || []).length ? `<div class="class-list">${getClasses(selectedDate).filter((item) => item.extra).map((item) => classRow(item, selectedDate, "timetable")).join("")}</div>` : emptyState("No extra classes on this date", "Add one using an available fixed period.")}</section>
           <section class="card" style="margin-top:16px"><h2>Repeat a weekday timetable</h2><p class="card-subtitle">Choose the timetable used on Saturdays. This can make Saturday an instructional day even on a holiday Saturday.</p><div class="date-toolbar" style="margin-top:12px"><label for="saturday-source">Saturday uses</label><select id="saturday-source" data-change="saturday-source"><option value="">Regular Saturday timetable</option>${DAYS.slice(0,5).map((name,index)=>`<option value="${index}" ${data.timetableOverrides[5]===index?"selected":""}>${name} timetable</option>`).join("")}</select></div><label class="settings-row"><span><strong>Use timetable on 1st and 3rd Saturdays too</strong><p>Overrides the regular Saturday holiday rule.</p></span><input type="checkbox" data-change="saturday-holidays" ${data.saturdayHolidayClasses?"checked":""}></label></section>
           <p class="hint">Sundays remain holidays. Saturday can use its own timetable or repeat a weekday timetable.</p>`;
-      }
-
-      function analyzeTimetableImage(file) {
-        if (!file) return;
-        const status = $("#ocr-status");
-        const preview = $("#ocr-preview");
-        if (!file.type.startsWith("image/")) {
-          if (status) status.textContent = "Please choose an image file such as JPG or PNG.";
-          return;
-        }
-        const imageUrl = URL.createObjectURL(file);
-        if (preview) preview.innerHTML = "";
-        if (status) status.textContent = "Loading text recognition…";
-        const loadOcr = () => {
-          if (window.Tesseract) return Promise.resolve(window.Tesseract);
-          return new Promise((resolve, reject) => {
-            const script = document.createElement("script");
-            script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-            script.onload = () => window.Tesseract ? resolve(window.Tesseract) : reject(new Error("OCR library did not initialize."));
-            script.onerror = () => reject(new Error("Could not load OCR. Connect to the internet and try again."));
-            document.head.append(script);
-          });
-        };
-        loadOcr().then(async (tesseract) => {
-          try {
-            const result = await tesseract.recognize(imageUrl, "eng", { logger: (message) => {
-              const currentStatus = $("#ocr-status");
-              if (currentStatus && message.status === "recognizing text") currentStatus.textContent = `Reading image… ${Math.round(message.progress * 100)}%`;
-            } });
-            renderOcrPreview(result.data);
-          } catch (error) {
-            const currentStatus = $("#ocr-status");
-            if (currentStatus) currentStatus.textContent = `Could not read image: ${error.message}`;
-          } finally {
-            URL.revokeObjectURL(imageUrl);
-          }
-        }).catch((error) => {
-          const currentStatus = $("#ocr-status");
-          if (currentStatus) currentStatus.textContent = error.message;
-          URL.revokeObjectURL(imageUrl);
-        });
-      }
-
-      function showOcrGrid(detected) {
-        const preview = $("#ocr-preview");
-        if (!preview) return;
-        preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Review timetable</h2><p class="card-subtitle">OCR results are editable. Save applies the complete detected grid to your weekly timetable.</p></div><button class="button primary" type="button" data-action="apply-ocr">Save timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => `<label class="sr-only" for="ocr-${dayIndex}-${slot}">${day} period ${slot + 1}</label><input id="ocr-${dayIndex}-${slot}" class="ocr-entry" data-day="${dayIndex}" data-slot="${slot}" maxlength="80" value="${esc(subject)}" placeholder="Period ${slot + 1} · ${esc(PERIODS[slot].start)}" aria-label="${day}, period ${slot + 1} subject">`).join("")}</article>`).join("")}</div></section>`;
-      }
-
-      function renderOcrPreview(text) {
-        if (Array.isArray(text)) {
-          showOcrGrid(text);
-          return;
-        }
-        const lines = (text.lines || []).map((line) => line.words.map((word) => ({
-          text: word.text.trim(),
-          x: word.bbox.x0,
-          y: word.bbox.y0,
-          width: word.bbox.x1 - word.bbox.x0
-        })).filter((word) => word.text));
-        const dayPattern = /\b(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?)\b/i;
-        const dayIndexes = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5 };
-        const detected = Array.from({ length: 6 }, () => Array(7).fill(""));
-        let activeDay = -1;
-        for (const words of lines) {
-          let dayFound = false;
-          let dayWordIndex = -1;
-          for (let index = 0; index < words.length; index += 1) {
-            const dayMatch = words[index].text.match(dayPattern);
-            if (!dayMatch) continue;
-            activeDay = dayIndexes[dayMatch[1].slice(0, 3).toLowerCase()];
-            dayWordIndex = index;
-            dayFound = true;
-            break;
-          }
-          if (activeDay < 0) continue;
-          const groups = [];
-          for (const word of dayFound ? words.slice(dayWordIndex + 1) : words) {
-            const group = groups[groups.length - 1];
-            if (group && word.x - (group.x + group.width) < 34) {
-              group.text += ` ${word.text}`;
-              group.width = word.x + word.width - group.x;
-            } else groups.push({ text: word.text, x: word.x, width: word.width });
-          }
-          const subjects = groups.map((group) => group.text.trim()).filter((cell) => cell && !/^(time|period|subject|break|lunch|tea)$/i.test(cell));
-          subjects.slice(0, 7).forEach((subject, slot) => { detected[activeDay][slot] = subject.slice(0, 80); });
-        }
-        const found = detected.flat().filter(Boolean).length;
-        const preview = $("#ocr-preview");
-        const status = $("#ocr-status");
-        if (!found) {
-          status.textContent = "OCR could not map text to days. Fill in the grid below, then apply it.";
-          ocrTimetableDraft = detected;
-          showOcrGrid(detected);
-          return;
-        }
-        status.textContent = `Detected ${found} subject entries. Check the preview before applying.`;
-        ocrTimetableDraft = detected;
-        showOcrGrid(detected);
       }
 
       function monthCalendar() {
@@ -1123,11 +1018,6 @@
           page.classList.toggle("active", id === activeId);
           if (id === activeId) $("#page-title").textContent = title;
         });
-        if (activeId === "timetable" && ocrTimetableDraft) {
-          const status = $("#ocr-status");
-          if (status) status.textContent = "Detected timetable ready. Review it below and apply when ready.";
-          renderOcrPreview(ocrTimetableDraft);
-        }
         $("#eyebrow").textContent = activeId === "dashboard" ? "YOUR STUDENT SPACE" : "YOUR STUDENT SPACE · " + pages[activeId][0].toUpperCase();
         $("#today-label").textContent = humanDate(todayKey(), { weekday: "short", month: "short", day: "numeric" });
         $$("#top-nav a").forEach((link) => {
@@ -1504,16 +1394,6 @@
           selectedDay = target;
           render();
           showToast(`${DAYS[source]} timetable copied to ${DAYS[target]}. Click 'Save timetable' to keep changes.`);
-        } else if (action === "apply-ocr") {
-          if (timetableDraft && !confirm("Discard your unsaved edits and apply the detected timetable?")) return;
-          if (!Array.isArray(ocrTimetableDraft) || ocrTimetableDraft.length !== 6) {
-            showToast("The detected timetable preview is unavailable. Please upload the image again.", true);
-            return;
-          }
-          timetableDraft = ocrTimetableDraft.map((day) => day.map((subject) => String(subject).trim()));
-          ocrTimetableDraft = null;
-          render();
-          showToast("Detected timetable applied. Please review and click 'Save timetable'.");
         } else if (action === "select-date") {
           selectedDate = button.dataset.date;
           const selected = dateFromKey(selectedDate);
@@ -1605,10 +1485,6 @@
           else data.timetableOverrides[5] = Number(event.target.value);
           if (!saveData()) { if (old === undefined) delete data.timetableOverrides[5]; else data.timetableOverrides[5] = old; }
           render();
-        } else if (event.target.id === "timetable-image") {
-          const file = event.target.files?.[0];
-          if (file) analyzeTimetableImage(file);
-          event.target.value = "";
         } else if (event.target.matches('[data-change="attendance-date"]') && event.target.value) {
           selectedDate = event.target.value;
           const date = dateFromKey(selectedDate);
@@ -1637,10 +1513,6 @@
         }
       });
       document.addEventListener("input", (event) => {
-        if (event.target.matches(".ocr-entry")) {
-          ocrTimetableDraft[Number(event.target.dataset.day)][Number(event.target.dataset.slot)] = event.target.value;
-          return;
-        }
         if (!event.target.matches(".subject-entry")) return;
         if (!timetableDraft) timetableDraft = data.timetable.map(d => [...d]);
         timetableDraft[selectedDay][Number(event.target.dataset.slot)] = event.target.value;
