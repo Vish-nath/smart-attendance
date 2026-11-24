@@ -558,6 +558,7 @@
         extras: {},
         notified: {},
         timetableOverrides: {},
+        dateTimetableOverrides: {},
         dayOverrides: {},
         dayUndo: {}
       });
@@ -630,6 +631,7 @@
           value.timetable.every((day) => Array.isArray(day) && day.length === 7 &&
             day.every((subject) => typeof subject === "string" && subject.length <= 80)) &&
           (value.timetableOverrides === undefined || (value.timetableOverrides && typeof value.timetableOverrides === "object" && !Array.isArray(value.timetableOverrides) && Object.entries(value.timetableOverrides).every(([day, source]) => Number(day) >= 0 && Number(day) < 6 && Number.isInteger(source) && source >= 0 && source < 6))) &&
+          (value.dateTimetableOverrides === undefined || (value.dateTimetableOverrides && typeof value.dateTimetableOverrides === "object" && !Array.isArray(value.dateTimetableOverrides) && Object.values(value.dateTimetableOverrides).every((source) => Number.isInteger(source) && source >= 0 && source < 6))) &&
           (value.dayOverrides === undefined || (value.dayOverrides && typeof value.dayOverrides === "object" && !Array.isArray(value.dayOverrides) && Object.values(value.dayOverrides).every((status) => ["absent", "cancelled"].includes(status)))) &&
           (value.dayUndo === undefined || (value.dayUndo && typeof value.dayUndo === "object" && !Array.isArray(value.dayUndo))) &&
           (value.saturdayHolidayClasses === undefined || typeof value.saturdayHolidayClasses === "boolean") &&
@@ -652,6 +654,7 @@
           const parsed = JSON.parse(saved);
           if (!validData(parsed)) throw new Error("The saved data does not match the supported format.");
           if (!parsed.timetableOverrides) parsed.timetableOverrides = {};
+          if (!parsed.dateTimetableOverrides) parsed.dateTimetableOverrides = {};
           if (!parsed.dayOverrides) parsed.dayOverrides = {};
           if (!parsed.dayUndo) parsed.dayUndo = {};
           return parsed;
@@ -685,8 +688,11 @@
 
       function getClasses(date) {
         const weekday = weekdayIndex(date);
-        const sourceDay = weekday === 5 && data.timetableOverrides[5] !== undefined ? data.timetableOverrides[5] : weekday;
-        const scheduled = weekday < 0 || (isHoliday(date) && !(weekday === 5 && data.saturdayHolidayClasses && data.timetableOverrides[5] !== undefined)) ? [] : data.timetable[sourceDay]
+        const dateOverride = data.dateTimetableOverrides?.[date];
+        const sourceDay = dateOverride !== undefined ? dateOverride : weekday;
+        const skipRegular = dateOverride === undefined && (weekday < 0 || isHoliday(date));
+
+        const scheduled = skipRegular ? [] : data.timetable[sourceDay]
           .map((subject, slot) => subject.trim() ? {
             id: scheduledId(date, slot),
             slot,
@@ -880,8 +886,11 @@
           <section class="card" style="margin-top:16px"><div class="card-head"><div><h2>One-time classes</h2><p class="card-subtitle">Extra classes for a specific date; the weekly timetable stays unchanged.</p></div><button class="button small soft" type="button" data-action="extra-open" data-date="${selectedDate}">＋ Add extra</button></div>
             <div class="date-toolbar"><label for="timetable-extra-date" class="sr-only">Choose date for one-time classes</label><input id="timetable-extra-date" class="date-input" type="date" value="${selectedDate}" data-change="timetable-date" aria-label="Choose date for one-time classes"><span class="card-subtitle">${esc(humanDate(selectedDate))}${isHoliday(selectedDate) ? " · Holiday" : ""}</span></div>
             ${(data.extras[selectedDate] || []).length ? `<div class="class-list">${getClasses(selectedDate).filter((item) => item.extra).map((item) => classRow(item, selectedDate, "timetable")).join("")}</div>` : emptyState("No extra classes on this date", "Add one using an available fixed period.")}</section>
-          <section class="card" style="margin-top:16px"><h2>Repeat a weekday timetable</h2><p class="card-subtitle">Choose the timetable used on Saturdays. This can make Saturday an instructional day even on a holiday Saturday.</p><div class="date-toolbar" style="margin-top:12px"><label for="saturday-source">Saturday uses</label><select id="saturday-source" data-change="saturday-source"><option value="">Regular Saturday timetable</option>${DAYS.slice(0,5).map((name,index)=>`<option value="${index}" ${data.timetableOverrides[5]===index?"selected":""}>${name} timetable</option>`).join("")}</select></div><label class="settings-row"><span><strong>Use timetable on 1st and 3rd Saturdays too</strong><p>Overrides the regular Saturday holiday rule.</p></span><input type="checkbox" data-change="saturday-holidays" ${data.saturdayHolidayClasses?"checked":""}></label></section>
-          <p class="hint">Sundays remain holidays. Saturday can use its own timetable or repeat a weekday timetable.</p>`;
+          <section class="card" style="margin-top:16px"><div class="card-head"><div><h2>Working holidays</h2><p class="card-subtitle">Apply a full weekday timetable to a specific holiday date (like a working Saturday). This changes the schedule for this date only.</p></div></div>
+            <div class="date-toolbar"><label for="working-holiday-date" class="sr-only">Choose date</label><input id="working-holiday-date" class="date-input" type="date" value="${selectedDate}" data-change="timetable-date" aria-label="Choose date"><span class="card-subtitle">${esc(humanDate(selectedDate))}</span></div>
+            <div class="date-toolbar" style="margin-top:12px"><label for="working-holiday-source">This date uses</label><select id="working-holiday-source" data-change="working-holiday-source" data-date="${selectedDate}"><option value="">Default schedule</option>${DAYS.slice(0,6).map((name,index)=>`<option value="${index}" ${data.dateTimetableOverrides?.[selectedDate]===index?"selected":""}>${name} timetable</option>`).join("")}</select></div>
+          </section>
+          <p class="hint">Sundays and the 1st and 3rd Saturdays are holidays by default. You can use 'Working holidays' to add classes on these dates, or 'One-time classes' to add a single extra period.</p>`;
       }
 
       function monthCalendar() {
@@ -1474,16 +1483,12 @@
         if (event.target.id === "copy-target") {
           const button = $('[data-action="copy-timetable"]');
           if (button) button.dataset.target = event.target.value;
-        } else if (event.target.matches('[data-change="saturday-holidays"]')) {
-          const old = data.saturdayHolidayClasses;
-          data.saturdayHolidayClasses = event.target.checked;
-          if (!saveData()) data.saturdayHolidayClasses = old;
-          render();
-        } else if (event.target.matches('[data-change="saturday-source"]')) {
-          const old = data.timetableOverrides[5];
-          if (event.target.value === "") delete data.timetableOverrides[5];
-          else data.timetableOverrides[5] = Number(event.target.value);
-          if (!saveData()) { if (old === undefined) delete data.timetableOverrides[5]; else data.timetableOverrides[5] = old; }
+        } else if (event.target.matches('[data-change="working-holiday-source"]')) {
+          const date = event.target.dataset.date;
+          const old = data.dateTimetableOverrides[date];
+          if (event.target.value === "") delete data.dateTimetableOverrides[date];
+          else data.dateTimetableOverrides[date] = Number(event.target.value);
+          if (!saveData()) { if (old === undefined) delete data.dateTimetableOverrides[date]; else data.dateTimetableOverrides[date] = old; }
           render();
         } else if (event.target.matches('[data-change="attendance-date"]') && event.target.value) {
           selectedDate = event.target.value;
