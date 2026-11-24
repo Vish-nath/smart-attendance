@@ -53,6 +53,7 @@ self.addEventListener("notificationclick", (event) => {
   if (details.id) target.searchParams.set("id", details.id);
   if (Number.isInteger(details.slot)) target.searchParams.set("slot", String(details.slot));
   if (details.subject) target.searchParams.set("subject", details.subject);
+  if (details.extra) target.searchParams.set("extra", "1");
   if (action) target.searchParams.set("classAction", action);
 
   event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
@@ -64,6 +65,7 @@ self.addEventListener("notificationclick", (event) => {
         date: details.date,
         slot: details.slot,
         subject: details.subject,
+        extra: details.extra,
         action
       });
       return client.focus();

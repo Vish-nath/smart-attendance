@@ -912,7 +912,7 @@
               const currentStatus = $("#ocr-status");
               if (currentStatus && message.status === "recognizing text") currentStatus.textContent = `Reading image… ${Math.round(message.progress * 100)}%`;
             } });
-            renderOcrPreview(result.data.text);
+            renderOcrPreview(result.data);
           } catch (error) {
             const currentStatus = $("#ocr-status");
             if (currentStatus) currentStatus.textContent = `Could not read image: ${error.message}`;
@@ -929,7 +929,7 @@
       function showOcrGrid(detected) {
         const preview = $("#ocr-preview");
         if (!preview) return;
-        preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Detected timetable</h2><p class="card-subtitle">Check and correct the extracted subjects, then apply them.</p></div><button class="button primary" type="button" data-action="apply-ocr">Apply detected timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => `<label class="sr-only" for="ocr-${dayIndex}-${slot}">${day} period ${slot + 1}</label><input id="ocr-${dayIndex}-${slot}" class="ocr-entry" data-day="${dayIndex}" data-slot="${slot}" maxlength="80" value="${esc(subject)}" placeholder="${esc(PERIODS[slot].start)} · empty period">`).join("")}</article>`).join("")}</div></section>`;
+        preview.innerHTML = `<section class="card"><div class="card-head"><div><h2>Review timetable</h2><p class="card-subtitle">OCR results are editable. Save applies the complete detected grid to your weekly timetable.</p></div><button class="button primary" type="button" data-action="apply-ocr">Save timetable</button></div><div class="subject-grid">${DAYS.map((day, dayIndex) => `<article class="subject-card"><div class="subject-title-row"><strong>${day}</strong></div>${detected[dayIndex].map((subject, slot) => `<label class="sr-only" for="ocr-${dayIndex}-${slot}">${day} period ${slot + 1}</label><input id="ocr-${dayIndex}-${slot}" class="ocr-entry" data-day="${dayIndex}" data-slot="${slot}" maxlength="80" value="${esc(subject)}" placeholder="Period ${slot + 1} · ${esc(PERIODS[slot].start)}" aria-label="${day}, period ${slot + 1} subject">`).join("")}</article>`).join("")}</div></section>`;
       }
 
       function renderOcrPreview(text) {
@@ -937,23 +937,37 @@
           showOcrGrid(text);
           return;
         }
-        const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        const lines = (text.lines || []).map((line) => line.words.map((word) => ({
+          text: word.text.trim(),
+          x: word.bbox.x0,
+          y: word.bbox.y0,
+          width: word.bbox.x1 - word.bbox.x0
+        })).filter((word) => word.text));
         const dayPattern = /\b(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?)\b/i;
         const dayIndexes = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5 };
         const detected = Array.from({ length: 6 }, () => Array(7).fill(""));
         let activeDay = -1;
-        for (const line of lines) {
-          const cells = line.split(/\t+|\s{2,}|\s*\|\s*/).map((cell) => cell.trim()).filter(Boolean);
-          for (let index = 0; index < cells.length; index += 1) {
-            const dayMatch = cells[index].match(dayPattern);
+        for (const words of lines) {
+          let dayFound = false;
+          let dayWordIndex = -1;
+          for (let index = 0; index < words.length; index += 1) {
+            const dayMatch = words[index].text.match(dayPattern);
             if (!dayMatch) continue;
             activeDay = dayIndexes[dayMatch[1].slice(0, 3).toLowerCase()];
-            cells[index] = cells[index].replace(dayMatch[0], "").replace(/^\s*[:\-–]?\s*/, "");
-            if (!cells[index]) cells.splice(index, 1);
+            dayWordIndex = index;
+            dayFound = true;
             break;
           }
           if (activeDay < 0) continue;
-          const subjects = cells.filter((cell) => cell && !/^(time|period|subject|break|lunch|tea)$/i.test(cell));
+          const groups = [];
+          for (const word of dayFound ? words.slice(dayWordIndex + 1) : words) {
+            const group = groups[groups.length - 1];
+            if (group && word.x - (group.x + group.width) < 34) {
+              group.text += ` ${word.text}`;
+              group.width = word.x + word.width - group.x;
+            } else groups.push({ text: word.text, x: word.x, width: word.width });
+          }
+          const subjects = groups.map((group) => group.text.trim()).filter((cell) => cell && !/^(time|period|subject|break|lunch|tea)$/i.test(cell));
           subjects.slice(0, 7).forEach((subject, slot) => { detected[activeDay][slot] = subject.slice(0, 80); });
         }
         const found = detected.flat().filter(Boolean).length;
@@ -1247,7 +1261,12 @@
       window.ClassmateNative.postMessage(JSON.stringify({
         action: "notify",
         title: title,
-        body: options.body
+        body: options.body,
+        id: item.id,
+        date: todayKey(),
+        slot: item.slot,
+        subject: item.subject,
+        extra: item.extra
       }));
       return;
     }
@@ -1267,9 +1286,11 @@
           icon: "../assets/icon-192.png",
           tag: key,
           data: { id: item.id, date: todayKey(), slot: item.slot, subject: item.subject, phase },
-          actions: phase === "finished"
-            ? [{ action: "present", title: "Present" }, { action: "absent", title: "Absent" }]
-            : [{ action: "cancel", title: "Class cancelled" }, { action: "extra", title: "Extra class" }]
+          actions: [
+            { action: "present", title: "Present" },
+            { action: "absent", title: "Absent" },
+            { action: "cancel", title: "Class cancelled" }
+          ]
         };
         if (serviceWorkerRegistration) {
           serviceWorkerRegistration.showNotification(title, options).catch((error) => {
@@ -1400,6 +1421,8 @@
         }
         setAttendance(id, date, subject || item.subject, item.slot, action, item.extra);
       }
+
+      window.classmateHandleNativeAction = handleNotificationAction;
 
       function handleAction(button) {
         const action = button.dataset.action;

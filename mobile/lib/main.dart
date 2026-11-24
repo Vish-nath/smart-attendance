@@ -29,9 +29,33 @@ Future<void> _initializeNotifications() async {
   try {
     await flutterLocalNotificationsPlugin.initialize(
       settings: initializationSettings,
+      onDidReceiveNotificationResponse: (response) {
+        unawaited(_handleNotificationResponse(response));
+      },
     );
   } catch (_) {}
 }
+
+Future<void> _handleNotificationResponse(NotificationResponse response) async {
+  final action = response.actionId;
+  if (!['present', 'absent', 'cancel'].contains(action)) return;
+  Map<String, dynamic> details;
+  try {
+    details = jsonDecode(response.payload ?? '') as Map<String, dynamic>;
+  } catch (_) {
+    return;
+  }
+  final controller = activeWebController;
+  if (controller == null) return;
+  final actionData = {...details, 'action': action};
+  await controller.runJavaScript(
+    'window.classmateHandleNativeAction(${jsonEncode(actionData)});',
+  );
+}
+
+final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+WebViewController? activeWebController;
 
 class ClassmateApp extends StatelessWidget {
   const ClassmateApp({super.key});
@@ -46,6 +70,7 @@ class ClassmateApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const ClassmateHome(),
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
     );
   }
 }
@@ -97,6 +122,7 @@ class _ClassmateHomeState extends State<ClassmateHome> {
           },
         ),
       );
+    activeWebController = _controller;
     unawaited(_loadApp());
   }
 
@@ -126,6 +152,7 @@ class _ClassmateHomeState extends State<ClassmateHome> {
   @override
   void dispose() {
     _loadTimeout?.cancel();
+    if (identical(activeWebController, _controller)) activeWebController = null;
     super.dispose();
   }
 
@@ -163,12 +190,22 @@ class _ClassmateHomeState extends State<ClassmateHome> {
         case 'notify':
           final title = request['title'] as String;
           final body = request['body'] as String;
+          final id = request['id'] as String?;
+          final date = request['date'] as String?;
+          final slot = request['slot'] as int?;
+          final subject = request['subject'] as String?;
+          final extra = request['extra'] == true;
           final androidDetails = const AndroidNotificationDetails(
             'classmate_reminders',
             'Class Reminders',
             channelDescription: 'Notifications for class start and attendance',
             importance: Importance.max,
             priority: Priority.high,
+            actions: <AndroidNotificationAction>[
+              AndroidNotificationAction('present', 'Present'),
+              AndroidNotificationAction('absent', 'Absent'),
+              AndroidNotificationAction('cancel', 'Class cancelled'),
+            ],
           );
           final iosDetails = const DarwinNotificationDetails();
           final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
@@ -177,6 +214,7 @@ class _ClassmateHomeState extends State<ClassmateHome> {
             title: title,
             body: body,
             notificationDetails: details,
+            payload: jsonEncode({'id': id, 'date': date, 'slot': slot, 'subject': subject, 'extra': extra}),
           );
           break;
         case 'request-notifications':
