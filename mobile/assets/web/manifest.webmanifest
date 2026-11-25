@@ -5,7 +5,7 @@
   "description": "A private, offline-first student timetable and attendance tracker.",
   "start_url": "./index.html",
   "scope": "../",
-  "display": "standalone",
+  "display": "browser",
   "orientation": "portrait-primary",
   "background_color": "#f6f7fb",
   "theme_color": "#f6f7fb",

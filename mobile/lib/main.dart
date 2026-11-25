@@ -309,12 +309,21 @@ class _ClassmateHomeState extends State<ClassmateHome> {
           final result = await FilePicker.pickFiles(
             type: FileType.custom,
             allowedExtensions: ['json'],
+            withData: true,
           );
           if (result == null || result.files.isEmpty) return;
-          final path = result.files.single.path;
-          if (path == null) return;
-          final file = File(path);
-          final content = await file.readAsString();
+          
+          String content;
+          final bytes = result.files.single.bytes;
+          if (bytes != null) {
+            content = utf8.decode(bytes);
+          } else {
+            final path = result.files.single.path;
+            if (path == null) return;
+            final file = File(path);
+            content = await file.readAsString();
+          }
+          
           await _controller.runJavaScript(
             'window.classmateImportBackup(${jsonEncode(content)});',
           );
