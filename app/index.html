@@ -558,7 +558,6 @@
         extras: {},
         notified: {},
         timetableOverrides: {},
-        dateTimetableOverrides: {},
         dayOverrides: {},
         dayUndo: {}
       });
@@ -631,7 +630,6 @@
           value.timetable.every((day) => Array.isArray(day) && day.length === 7 &&
             day.every((subject) => typeof subject === "string" && subject.length <= 80)) &&
           (value.timetableOverrides === undefined || (value.timetableOverrides && typeof value.timetableOverrides === "object" && !Array.isArray(value.timetableOverrides) && Object.entries(value.timetableOverrides).every(([day, source]) => Number(day) >= 0 && Number(day) < 6 && Number.isInteger(source) && source >= 0 && source < 6))) &&
-          (value.dateTimetableOverrides === undefined || (value.dateTimetableOverrides && typeof value.dateTimetableOverrides === "object" && !Array.isArray(value.dateTimetableOverrides) && Object.values(value.dateTimetableOverrides).every((source) => Number.isInteger(source) && source >= 0 && source < 6))) &&
           (value.dayOverrides === undefined || (value.dayOverrides && typeof value.dayOverrides === "object" && !Array.isArray(value.dayOverrides) && Object.values(value.dayOverrides).every((status) => ["absent", "cancelled"].includes(status)))) &&
           (value.dayUndo === undefined || (value.dayUndo && typeof value.dayUndo === "object" && !Array.isArray(value.dayUndo))) &&
           (value.saturdayHolidayClasses === undefined || typeof value.saturdayHolidayClasses === "boolean") &&
@@ -654,7 +652,6 @@
           const parsed = JSON.parse(saved);
           if (!validData(parsed)) throw new Error("The saved data does not match the supported format.");
           if (!parsed.timetableOverrides) parsed.timetableOverrides = {};
-          if (!parsed.dateTimetableOverrides) parsed.dateTimetableOverrides = {};
           if (!parsed.dayOverrides) parsed.dayOverrides = {};
           if (!parsed.dayUndo) parsed.dayUndo = {};
           return parsed;
@@ -674,26 +671,6 @@
         }
       }
 
-      function playPresentSound() {
-        try {
-          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-          if (!AudioContextClass) return;
-          const ctx = new AudioContextClass();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.type = "sine";
-          osc.frequency.setValueAtTime(800, ctx.currentTime);
-          osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
-          gain.gain.setValueAtTime(0, ctx.currentTime);
-          gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.2);
-        } catch (e) {}
-      }
-
       function showToast(message, isError = false) {
         const toast = $("#toast");
         toast.textContent = message;
@@ -708,16 +685,8 @@
 
       function getClasses(date) {
         const weekday = weekdayIndex(date);
-        const dateOverride = data.dateTimetableOverrides?.[date];
-        let sourceDay = dateOverride !== undefined ? dateOverride : weekday;
-        let skipRegular = dateOverride === undefined && (weekday < 0 || isHoliday(date));
-
-        if (dateOverride === undefined && weekday === 5 && data.timetableOverrides?.[5] !== undefined) {
-          sourceDay = data.timetableOverrides[5];
-          if (data.saturdayHolidayClasses) skipRegular = false;
-        }
-
-        const scheduled = skipRegular ? [] : data.timetable[sourceDay]
+        const sourceDay = weekday === 5 && data.timetableOverrides[5] !== undefined ? data.timetableOverrides[5] : weekday;
+        const scheduled = weekday < 0 || (isHoliday(date) && !(weekday === 5 && data.saturdayHolidayClasses && data.timetableOverrides[5] !== undefined)) ? [] : data.timetable[sourceDay]
           .map((subject, slot) => subject.trim() ? {
             id: scheduledId(date, slot),
             slot,
@@ -911,11 +880,17 @@
           <section class="card" style="margin-top:16px"><div class="card-head"><div><h2>One-time classes</h2><p class="card-subtitle">Extra classes for a specific date; the weekly timetable stays unchanged.</p></div><button class="button small soft" type="button" data-action="extra-open" data-date="${selectedDate}">＋ Add extra</button></div>
             <div class="date-toolbar"><label for="timetable-extra-date" class="sr-only">Choose date for one-time classes</label><input id="timetable-extra-date" class="date-input" type="date" value="${selectedDate}" data-change="timetable-date" aria-label="Choose date for one-time classes"><span class="card-subtitle">${esc(humanDate(selectedDate))}${isHoliday(selectedDate) ? " · Holiday" : ""}</span></div>
             ${(data.extras[selectedDate] || []).length ? `<div class="class-list">${getClasses(selectedDate).filter((item) => item.extra).map((item) => classRow(item, selectedDate, "timetable")).join("")}</div>` : emptyState("No extra classes on this date", "Add one using an available fixed period.")}</section>
-          <section class="card" style="margin-top:16px"><div class="card-head"><div><h2>Working holidays</h2><p class="card-subtitle">Apply a full weekday timetable to a specific holiday date (like a working Saturday). This changes the schedule for this date only.</p></div></div>
-            <div class="date-toolbar"><label for="working-holiday-date" class="sr-only">Choose date</label><input id="working-holiday-date" class="date-input" type="date" value="${selectedDate}" data-change="timetable-date" aria-label="Choose date"><span class="card-subtitle">${esc(humanDate(selectedDate))}</span></div>
-            <div class="date-toolbar" style="margin-top:12px"><label for="working-holiday-source">This date uses</label><select id="working-holiday-source" data-change="working-holiday-source" data-date="${selectedDate}"><option value="">Default schedule</option>${DAYS.slice(0,6).map((name,index)=>`<option value="${index}" ${data.dateTimetableOverrides?.[selectedDate]===index?"selected":""}>${name} timetable</option>`).join("")}</select></div>
+          <section class="card" style="margin-top:16px"><div class="card-head"><div><h2>Multiple holidays</h2><p class="card-subtitle">Mark a date range as holidays.</p></div></div>
+            <form id="holiday-range-form" style="display:grid;gap:12px">
+              <div style="display:flex;gap:12px;align-items:flex-end">
+                <div class="field" style="flex:1;margin:0"><label for="holiday-start">Start date</label><input id="holiday-start" name="start" type="date" required></div>
+                <div class="field" style="flex:1;margin:0"><label for="holiday-end">End date</label><input id="holiday-end" name="end" type="date" required></div>
+              </div>
+              <div class="field" style="margin:0"><label for="holiday-status">Class status</label><select id="holiday-status" name="status" required><option value="cancelled">Classes cancelled (do not count)</option><option value="absent">Classes held (mark absent)</option></select></div>
+              <div class="timetable-save-row" style="margin-top:4px"><button class="button primary" type="submit">Apply to date range</button></div>
+            </form>
           </section>
-          <p class="hint">Sundays and the 1st and 3rd Saturdays are holidays by default. You can use 'Working holidays' to add classes on these dates, or 'One-time classes' to add a single extra period.</p>`;
+          <p class="hint">Sundays and the 1st and 3rd Saturdays are holidays by default.</p>`;
       }
 
       function monthCalendar() {
@@ -1092,7 +1067,7 @@
         if (date && !wasFullAttendance && hasFullAttendance(date)) showFullDayCelebration(date);
       }
 
-      function setWholeDay(date, status) {
+      function setWholeDay(date, status, bulk = false) {
         const before = JSON.stringify(data);
         if (status === "clear") {
           delete data.dayOverrides[date];
@@ -1104,16 +1079,20 @@
           delete data.dayUndo[date];
         }
         else {
-          data.dayUndo[date] = Object.fromEntries(getClasses(date).map((item) => [item.id, data.attendance[item.id]]).filter(([, record]) => record));
+          const classes = getClasses(date);
+          if (classes.length === 0) return;
+          data.dayUndo[date] = Object.fromEntries(classes.map((item) => [item.id, data.attendance[item.id]]).filter(([, record]) => record));
           data.dayOverrides[date] = status;
-          getClasses(date).forEach((item) => {
+          classes.forEach((item) => {
             data.attendance[item.id] = { date, subject: item.subject, slot: item.slot, status, extra: item.extra };
           });
         }
-        if (!saveData()) { data = JSON.parse(before); return; }
-        playSound(status === "absent" ? "absent" : "notify");
-        render();
-        showToast(status === "clear" ? "Whole-day action undone." : status === "absent" ? "All classes marked absent." : "All classes cancelled and excluded from attendance.");
+        if (!bulk) {
+          if (!saveData()) { data = JSON.parse(before); return; }
+          playSound(status === "absent" ? "absent" : "notify");
+          render();
+          showToast(status === "clear" ? "Whole-day action undone." : status === "absent" ? "All classes marked absent." : "All classes cancelled and excluded from attendance.");
+        }
       }
 
       let audioContext;
@@ -1396,7 +1375,7 @@
           showToast("That class is no longer on the selected timetable.", true);
           return;
         }
-        if (action === "present") playPresentSound();
+        if (action === "present") playSound("present");
         setAttendance(id, date, subject || item.subject, item.slot, action, item.extra);
       }
 
@@ -1422,7 +1401,7 @@
         } else if (action === "save-timetable") {
           saveTimetable();
         } else if (action === "whole-day") {
-          if (button.dataset.status === "present") playPresentSound();
+          if (button.dataset.status === "present") playSound("present");
           setWholeDay(button.dataset.date, button.dataset.status);
         } else if (action === "copy-timetable") {
           const target = Number(button.dataset.target), source = Number(button.dataset.source);
@@ -1445,7 +1424,7 @@
             showToast("This class is no longer on the selected timetable.", true);
             return;
           }
-          if (button.dataset.status === "present") playPresentSound();
+          if (button.dataset.status === "present") playSound("present");
           setAttendance(item.id, button.dataset.date, item.subject, item.slot, button.dataset.status, item.extra);
         } else if (action === "clear-status") {
           clearAttendance(button.dataset.id);
@@ -1512,12 +1491,16 @@
         if (event.target.id === "copy-target") {
           const button = $('[data-action="copy-timetable"]');
           if (button) button.dataset.target = event.target.value;
-        } else if (event.target.matches('[data-change="working-holiday-source"]')) {
-          const date = event.target.dataset.date;
-          const old = data.dateTimetableOverrides[date];
-          if (event.target.value === "") delete data.dateTimetableOverrides[date];
-          else data.dateTimetableOverrides[date] = Number(event.target.value);
-          if (!saveData()) { if (old === undefined) delete data.dateTimetableOverrides[date]; else data.dateTimetableOverrides[date] = old; }
+        } else if (event.target.matches('[data-change="saturday-holidays"]')) {
+          const old = data.saturdayHolidayClasses;
+          data.saturdayHolidayClasses = event.target.checked;
+          if (!saveData()) data.saturdayHolidayClasses = old;
+          render();
+        } else if (event.target.matches('[data-change="saturday-source"]')) {
+          const old = data.timetableOverrides[5];
+          if (event.target.value === "") delete data.timetableOverrides[5];
+          else data.timetableOverrides[5] = Number(event.target.value);
+          if (!saveData()) { if (old === undefined) delete data.timetableOverrides[5]; else data.timetableOverrides[5] = old; }
           render();
         } else if (event.target.matches('[data-change="attendance-date"]') && event.target.value) {
           selectedDate = event.target.value;
@@ -1558,13 +1541,33 @@
         saveButton.classList.toggle("save-idle", !dirty);
       });
       document.addEventListener("submit", (event) => {
-        if (event.target.id !== "extra-form") return;
         event.preventDefault();
-        const formData = new FormData(event.target);
-        const date = String(formData.get("date"));
-        const slot = Number(formData.get("slot"));
-        const subject = String(formData.get("subject") || "");
-        if (addExtra(date, slot, subject)) $("#extra-dialog").close();
+        if (event.target.id === "extra-form") {
+          const formData = new FormData(event.target);
+          const date = String(formData.get("date"));
+          const slot = Number(formData.get("slot"));
+          const subject = String(formData.get("subject") || "");
+          if (addExtra(date, slot, subject)) $("#extra-dialog").close();
+        } else if (event.target.id === "holiday-range-form") {
+          const formData = new FormData(event.target);
+          const start = String(formData.get("start"));
+          const end = String(formData.get("end"));
+          const status = String(formData.get("status"));
+          if (start && end && start <= end) {
+            let currentDate = dateFromKey(start);
+            const endDate = dateFromKey(end);
+            while (currentDate <= endDate) {
+              setWholeDay(dateKey(currentDate), status, true);
+              currentDate.setDate(currentDate.getDate() + 1);
+            }
+            saveData();
+            render();
+            showToast(`Marked ${status} from ${start} to ${end}.`);
+            event.target.reset();
+          } else {
+            showToast("Invalid date range.", true);
+          }
+        }
       });
       window.addEventListener("hashchange", showActivePage);
       window.addEventListener("beforeinstallprompt", (event) => {
