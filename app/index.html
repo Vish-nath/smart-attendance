@@ -1341,6 +1341,9 @@
         try {
           const imported = JSON.parse(content);
           if (!validData(imported)) throw new Error("The selected file is not a valid Classmate backup.");
+          if (!imported.timetableOverrides) imported.timetableOverrides = {};
+          if (!imported.dayOverrides) imported.dayOverrides = {};
+          if (!imported.dayUndo) imported.dayUndo = {};
           const previous = data;
           data = imported;
           if (!saveData()) {
