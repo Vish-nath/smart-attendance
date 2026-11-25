@@ -674,6 +674,26 @@
         }
       }
 
+      function playPresentSound() {
+        try {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextClass) return;
+          const ctx = new AudioContextClass();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(800, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0, ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.2);
+        } catch (e) {}
+      }
+
       function showToast(message, isError = false) {
         const toast = $("#toast");
         toast.textContent = message;
@@ -689,8 +709,13 @@
       function getClasses(date) {
         const weekday = weekdayIndex(date);
         const dateOverride = data.dateTimetableOverrides?.[date];
-        const sourceDay = dateOverride !== undefined ? dateOverride : weekday;
-        const skipRegular = dateOverride === undefined && (weekday < 0 || isHoliday(date));
+        let sourceDay = dateOverride !== undefined ? dateOverride : weekday;
+        let skipRegular = dateOverride === undefined && (weekday < 0 || isHoliday(date));
+
+        if (dateOverride === undefined && weekday === 5 && data.timetableOverrides?.[5] !== undefined) {
+          sourceDay = data.timetableOverrides[5];
+          if (data.saturdayHolidayClasses) skipRegular = false;
+        }
 
         const scheduled = skipRegular ? [] : data.timetable[sourceDay]
           .map((subject, slot) => subject.trim() ? {
@@ -1336,6 +1361,7 @@
             data = previous;
             return;
           }
+          timetableDraft = null;
           render();
           showToast("Backup imported. Your local attendance data has been updated.");
         } catch (error) {
@@ -1370,6 +1396,7 @@
           showToast("That class is no longer on the selected timetable.", true);
           return;
         }
+        if (action === "present") playPresentSound();
         setAttendance(id, date, subject || item.subject, item.slot, action, item.extra);
       }
 
@@ -1395,6 +1422,7 @@
         } else if (action === "save-timetable") {
           saveTimetable();
         } else if (action === "whole-day") {
+          if (button.dataset.status === "present") playPresentSound();
           setWholeDay(button.dataset.date, button.dataset.status);
         } else if (action === "copy-timetable") {
           const target = Number(button.dataset.target), source = Number(button.dataset.source);
@@ -1417,6 +1445,7 @@
             showToast("This class is no longer on the selected timetable.", true);
             return;
           }
+          if (button.dataset.status === "present") playPresentSound();
           setAttendance(item.id, button.dataset.date, item.subject, item.slot, button.dataset.status, item.extra);
         } else if (action === "clear-status") {
           clearAttendance(button.dataset.id);
