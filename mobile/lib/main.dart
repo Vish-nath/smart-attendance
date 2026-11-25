@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -309,8 +310,11 @@ class _ClassmateHomeState extends State<ClassmateHome> {
             type: FileType.custom,
             allowedExtensions: ['json'],
           );
-          if (result.isEmpty) return;
-          final content = utf8.decode(await result.single.readAsBytes());
+          if (result == null || result.files.isEmpty) return;
+          final path = result.files.single.path;
+          if (path == null) return;
+          final file = File(path);
+          final content = await file.readAsString();
           await _controller.runJavaScript(
             'window.classmateImportBackup(${jsonEncode(content)});',
           );

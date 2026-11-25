@@ -1096,7 +1096,14 @@
       }
 
       let audioContext;
+      let currentAudio = null;
       function playSound(kind) {
+        if (kind === "present" || kind === "absent") {
+          if (currentAudio) currentAudio.pause();
+          currentAudio = new Audio(`../assets/${kind}.mp3`);
+          currentAudio.play().catch(() => {});
+          return;
+        }
         try {
           const Context = window.AudioContext || window.webkitAudioContext;
           if (!Context) return;
@@ -1105,10 +1112,10 @@
           const oscillator = audioContext.createOscillator();
           const gain = audioContext.createGain();
           oscillator.type = "sine";
-          oscillator.frequency.value = kind === "absent" ? 310 : kind === "present" ? 880 : 660;
+          oscillator.frequency.value = 660;
           gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
           gain.gain.exponentialRampToValueAtTime(0.16, audioContext.currentTime + 0.015);
-          gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + (kind === "absent" ? 0.24 : 0.16));
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.16);
           oscillator.connect(gain); gain.connect(audioContext.destination);
           oscillator.start(); oscillator.stop(audioContext.currentTime + 0.25);
         } catch (_) { /* Audio is optional when the device blocks playback. */ }
@@ -1575,11 +1582,6 @@
         installPrompt = event;
         render();
       });
-      window.addEventListener("appinstalled", () => {
-        installPrompt = null;
-        render();
-        showToast("Classmate installed.");
-      });
       window.addEventListener("focus", () => checkReminders());
       document.addEventListener("visibilitychange", () => {
         if (!document.hidden) checkReminders();
@@ -1588,7 +1590,6 @@
       data = loadData();
       loadTheme();
       render();
-      showAttendanceWarning();
       registerServiceWorker();
       checkReminders(false);
       window.setInterval(() => checkReminders(), 30 * 1000);
