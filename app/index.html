@@ -1746,5 +1746,51 @@
       window.setInterval(() => checkReminders(), 30 * 1000);
     })();
   </script>
+  <style>
+    .glitter-particle {
+      position: fixed;
+      pointer-events: none;
+      z-index: 10000;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      animation: glitter-anim 0.8s ease-out forwards;
+    }
+    @keyframes glitter-anim {
+      0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(0);
+      }
+      50% {
+        opacity: 1;
+        transform: translate(var(--tx), var(--ty)) scale(1) rotate(var(--rot));
+      }
+      100% {
+        opacity: 0;
+        transform: translate(var(--tx), var(--ty)) scale(0.5) rotate(calc(var(--rot) + 45deg));
+      }
+    }
+  </style>
+  <script>
+    document.addEventListener("click", (e) => {
+      const colors = ["#FFD700", "#FF69B4", "#00FFFF", "#32CD32", "#FF4500"];
+      for (let i = 0; i < 15; i++) {
+        const p = document.createElement("div");
+        p.className = "glitter-particle";
+        p.style.left = e.clientX + "px";
+        p.style.top = e.clientY + "px";
+        const tx = (Math.random() - 0.5) * 100 + "px";
+        const ty = (Math.random() - 0.5) * 100 + "px";
+        const rot = Math.random() * 360 + "deg";
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        p.style.setProperty("--tx", tx);
+        p.style.setProperty("--ty", ty);
+        p.style.setProperty("--rot", rot);
+        p.style.backgroundColor = color;
+        document.body.appendChild(p);
+        setTimeout(() => p.remove(), 800);
+      }
+    });
+  </script>
 </body>
 </html>
