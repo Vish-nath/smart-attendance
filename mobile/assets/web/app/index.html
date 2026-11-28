@@ -306,6 +306,7 @@
     }
     .slot-row:first-child { border-top: 0; }
     .timetable-save-row { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .ocr-status { display: block; margin-top: 12px; color: var(--muted); font-size: 12px; }
     .button.save-pending { border-color: var(--amber); background: var(--amber); color: #171717; box-shadow: 0 0 0 3px var(--amber-soft); }
     .button.save-idle { opacity: .5; }
     .break-note { display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; padding: 10px 12px; border-radius: 10px; background: var(--surface-muted); color: var(--muted); font-size: 11px; }
@@ -901,6 +902,7 @@
           <input id="subject-${index}" class="subject-entry" type="text" maxlength="80" value="${esc(values[index])}" placeholder="Add subject name" data-slot="${index}" autocomplete="off">
         </div>`).join("");
         return `${pageIntro("Enter subject names for each day. Period timings follow your reference timetable and cannot be changed.")}
+          <section class="card" style="margin-bottom:16px"><div class="card-head" style="margin-bottom:0"><div><h2>Import timetable photo</h2><p class="card-subtitle">Choose a clear timetable image to detect subjects automatically. Needs internet for OCR.</p></div><label class="button soft" for="timetable-image">Choose image</label><input id="timetable-image" type="file" accept="image/*" hidden></div><div id="ocr-status" class="ocr-status" aria-live="polite"></div></section>
           <div class="day-tabs" role="group" aria-label="Choose a weekday">${tabs}</div>
           <section class="card"><div class="card-head"><div><h2>${DAYS[day]}</h2><p class="card-subtitle">Add a subject or leave the period empty.</p></div><span class="status-pill brand">7 fixed periods</span></div>
             <div class="date-toolbar"><label for="copy-target">Copy this timetable to</label><select id="copy-target">${DAYS.map((name,index)=>`<option value="${index}" ${index===(day===0?1:0)?"selected":""}>${name}</option>`).join("")}</select><button class="button small soft" type="button" data-action="copy-timetable" data-source="${day}" data-target="${day===0?1:0}">Copy</button></div>
@@ -1408,7 +1410,7 @@
           showToast("That class is no longer on the selected timetable.", true);
           return;
         }
-        if (action === "present") playPresentSound();
+        if (action === "present") playSound("present");
         setAttendance(id, date, subject || item.subject, item.slot, action, item.extra);
       }
 
@@ -1434,7 +1436,7 @@
         } else if (action === "save-timetable") {
           saveTimetable();
         } else if (action === "whole-day") {
-          if (button.dataset.status === "present") playPresentSound();
+          if (button.dataset.status === "present") playSound("present");
           setWholeDay(button.dataset.date, button.dataset.status);
         } else if (action === "copy-timetable") {
           const target = Number(button.dataset.target), source = Number(button.dataset.source);
@@ -1457,7 +1459,7 @@
             showToast("This class is no longer on the selected timetable.", true);
             return;
           }
-          if (button.dataset.status === "present") playPresentSound();
+          if (button.dataset.status === "present") playSound("present");
           setAttendance(item.id, button.dataset.date, item.subject, item.slot, button.dataset.status, item.extra);
         } else if (action === "clear-status") {
           clearAttendance(button.dataset.id);
@@ -1548,6 +1550,10 @@
           const date = dateFromKey(selectedDate);
           calendarMonth = new Date(date.getFullYear(), date.getMonth(), 1);
           render();
+        } else if (event.target.id === "timetable-image") {
+          const file = event.target.files?.[0];
+          if (file) analyzeTimetableImage(file);
+          event.target.value = "";
         } else if (event.target.id === "extra-date" && event.target.value) {
           if (!extraSlots(event.target.value)) {
             showToast("There are no free fixed periods for this date.", true);
