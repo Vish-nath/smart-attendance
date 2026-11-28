@@ -992,6 +992,7 @@
           <div class="section-heading"><h2>Reminder settings</h2></div>
           <section class="card"><div class="settings-row"><div><strong>${notificationLabel}</strong><p>${notificationHelp}</p></div><button class="button small ${permission === "granted" ? "good" : "primary"}" type="button" data-action="enable-notifications" ${permission === "unsupported" || permission === "denied" ? "disabled" : ""}>${permission === "granted" ? "Enabled" : permission === "denied" ? "Unavailable" : "Allow"}</button></div>
             <div class="settings-row"><div><strong>Automatic reminders</strong><p>The app must be open or running in the background. Browsers do not guarantee offline alarms after the app is fully closed.</p></div><span class="status-pill">On-device</span></div>
+            <div class="settings-row"><div><strong>Test notifications</strong><p>Send a test notification immediately to check if alerts are working.</p></div><button class="button small soft" type="button" data-action="test-notification">Test alert</button></div>
             <div class="settings-row"><div><strong>Install Classmate</strong><p>${installStatus}</p></div>${installPrompt ? '<button class="button small soft" type="button" data-action="install">Install</button>' : installed ? '<span class="status-pill good">Installed</span>' : '<span class="status-pill">PWA</span>'}</div>
             <div class="settings-row"><div><strong>Move or back up your data</strong><p>Export a local JSON backup or import one from another device.</p></div><div class="class-actions"><button class="button small" type="button" data-action="export">Export backup</button><button class="button small" type="button" data-action="import">Import backup</button></div></div>
           </section>`;
@@ -1448,6 +1449,18 @@
           $("#extra-dialog").close();
         } else if (action === "enable-notifications") {
           requestNotifications();
+        } else if (action === "test-notification") {
+          const title = "Test Notification";
+          const body = "This is a test alert from Classmate.";
+          if (window.ClassmateNative) {
+            window.ClassmateNative.postMessage(JSON.stringify({ action: "notify", title, body }));
+          } else if ("Notification" in window && Notification.permission === "granted") {
+            const options = { body, icon: "../assets/icon-192.png", tag: "test" };
+            if (serviceWorkerRegistration) serviceWorkerRegistration.showNotification(title, options).catch(e => showToast(e.message, true));
+            else { try { new Notification(title, options); } catch(e) { showToast(e.message, true); } }
+          } else {
+            showToast("Notifications are not enabled.", true);
+          }
         } else if (action === "export") {
           exportBackup();
         } else if (action === "import") {
