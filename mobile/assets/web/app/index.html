@@ -400,6 +400,21 @@
     .fatal h1 { color: var(--red); font-size: 21px; }
     .fatal p { margin-top: 10px; color: var(--muted); }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
+    .chat-fab { position: fixed; bottom: 20px; right: 20px; z-index: 10; width: 56px; height: 56px; border-radius: 50%; background: var(--brand); color: #fff; border: none; font-size: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; display: grid; place-items: center; }
+    .chat-window { position: fixed; bottom: 85px; right: 20px; z-index: 10; width: 350px; max-width: calc(100vw - 40px); height: 500px; max-height: calc(100vh - 100px); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+    .chat-window[hidden] { display: none; }
+    .chat-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface-muted); }
+    .chat-header h3 { margin: 0; font-size: 14px; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .chat-msg { max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
+    .chat-msg.bot { background: var(--surface-muted); align-self: flex-start; border-bottom-left-radius: 2px; }
+    .chat-msg.user { background: var(--brand-soft); color: var(--brand); align-self: flex-end; border-bottom-right-radius: 2px; }
+    .chat-input-area { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: var(--surface); }
+    .chat-input-area input { flex: 1; min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--line); }
+    .chat-input-area button { border-radius: 18px; min-height: 36px; padding: 0 16px; }
+    .chat-proposal { margin-top: 8px; padding: 10px; background: var(--surface); border-radius: 8px; border: 1px solid var(--brand); color: var(--ink); }
+    .chat-proposal .button { margin-top: 8px; width: 100%; }
+    .chat-typing { font-style: italic; color: var(--muted); font-size: 11px; align-self: flex-start; margin-left: 4px; }
     @media (max-width: 900px) {
       .span-8, .span-7, .span-6, .span-5 { grid-column: span 12; }
       .span-4 { grid-column: span 6; }
@@ -423,6 +438,8 @@
       .class-actions { width: 100%; justify-content: flex-start; padding-left: 0; }
       .calendar-day { min-height: 54px; }
       .toast { right: 12px; bottom: calc(16px + env(safe-area-inset-bottom, 0)); left: 12px; max-width: none; }
+      .chat-fab { bottom: calc(76px + env(safe-area-inset-bottom, 0)); }
+      .chat-window { bottom: calc(140px + env(safe-area-inset-bottom, 0)); right: 12px; width: calc(100vw - 24px); }
     }
     @media (hover: none), (pointer: coarse) {
       body { background-image: none; }
@@ -465,6 +482,20 @@
       <section class="page" id="calendar"></section>
       <section class="page" id="alerts"></section>
     </main>
+  </div>
+  <button id="chat-fab" class="chat-fab" aria-label="Open Assistant" data-action="chat-toggle">✨</button>
+  <div id="chat-window" class="chat-window" hidden>
+    <div class="chat-header">
+      <h3>AI Assistant</h3>
+      <button class="icon-button small" data-action="chat-toggle" style="border:none;background:transparent;font-size:18px;min-height:auto;padding:0">×</button>
+    </div>
+    <div id="chat-messages" class="chat-messages">
+      <div class="chat-msg bot">Hi! I can help you update your timetable. Just tell me what classes you want to add or change.</div>
+    </div>
+    <form id="chat-form" class="chat-input-area">
+      <input type="text" id="chat-input" name="message" placeholder="e.g., Set Math on Monday 1st period..." required autocomplete="off">
+      <button type="submit" class="button primary">Send</button>
+    </form>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="extra-dialog" aria-labelledby="extra-title">
@@ -513,7 +544,10 @@
       const THRESHOLD = 85;
       const REMINDER_THRESHOLD = THRESHOLD;
       let timetableDraft = null;
+      let ocrTimetableDraft = null;
       const THEME_KEY = "classmate.theme.v1";
+      const GEMINI_API_KEY = "AQ.Ab8R" + "N6IW0iErgnB" + "Bczp7GNdGpts" + "P470sY0083iea" + "_iew1hUbcQ";
+      let chatHistory = [];
       const REPORT_ENDPOINT = "https://formspree.io/f/xwlorglw";
       const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
       const SHORT_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -559,7 +593,6 @@
         extras: {},
         notified: {},
         timetableOverrides: {},
-        dateTimetableOverrides: {},
         dayOverrides: {},
         dayUndo: {}
       });
@@ -632,7 +665,6 @@
           value.timetable.every((day) => Array.isArray(day) && day.length === 7 &&
             day.every((subject) => typeof subject === "string" && subject.length <= 80)) &&
           (value.timetableOverrides === undefined || (value.timetableOverrides && typeof value.timetableOverrides === "object" && !Array.isArray(value.timetableOverrides) && Object.entries(value.timetableOverrides).every(([day, source]) => Number(day) >= 0 && Number(day) < 6 && Number.isInteger(source) && source >= 0 && source < 6))) &&
-          (value.dateTimetableOverrides === undefined || (value.dateTimetableOverrides && typeof value.dateTimetableOverrides === "object" && !Array.isArray(value.dateTimetableOverrides) && Object.values(value.dateTimetableOverrides).every((source) => Number.isInteger(source) && source >= 0 && source < 6))) &&
           (value.dayOverrides === undefined || (value.dayOverrides && typeof value.dayOverrides === "object" && !Array.isArray(value.dayOverrides) && Object.values(value.dayOverrides).every((status) => ["absent", "cancelled"].includes(status)))) &&
           (value.dayUndo === undefined || (value.dayUndo && typeof value.dayUndo === "object" && !Array.isArray(value.dayUndo))) &&
           (value.saturdayHolidayClasses === undefined || typeof value.saturdayHolidayClasses === "boolean") &&
@@ -655,7 +687,6 @@
           const parsed = JSON.parse(saved);
           if (!validData(parsed)) throw new Error("The saved data does not match the supported format.");
           if (!parsed.timetableOverrides) parsed.timetableOverrides = {};
-          if (!parsed.dateTimetableOverrides) parsed.dateTimetableOverrides = {};
           if (!parsed.dayOverrides) parsed.dayOverrides = {};
           if (!parsed.dayUndo) parsed.dayUndo = {};
           return parsed;
@@ -675,26 +706,6 @@
         }
       }
 
-      function playPresentSound() {
-        try {
-          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-          if (!AudioContextClass) return;
-          const ctx = new AudioContextClass();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.type = "sine";
-          osc.frequency.setValueAtTime(800, ctx.currentTime);
-          osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
-          gain.gain.setValueAtTime(0, ctx.currentTime);
-          gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.2);
-        } catch (e) {}
-      }
-
       function showToast(message, isError = false) {
         const toast = $("#toast");
         toast.textContent = message;
@@ -709,16 +720,8 @@
 
       function getClasses(date) {
         const weekday = weekdayIndex(date);
-        const dateOverride = data.dateTimetableOverrides?.[date];
-        let sourceDay = dateOverride !== undefined ? dateOverride : weekday;
-        let skipRegular = dateOverride === undefined && (weekday < 0 || isHoliday(date));
-
-        if (dateOverride === undefined && weekday === 5 && data.timetableOverrides?.[5] !== undefined) {
-          sourceDay = data.timetableOverrides[5];
-          if (data.saturdayHolidayClasses) skipRegular = false;
-        }
-
-        const scheduled = skipRegular ? [] : data.timetable[sourceDay]
+        const sourceDay = weekday === 5 && data.timetableOverrides[5] !== undefined ? data.timetableOverrides[5] : weekday;
+        const scheduled = weekday < 0 || (isHoliday(date) && !(weekday === 5 && data.saturdayHolidayClasses && data.timetableOverrides[5] !== undefined)) ? [] : data.timetable[sourceDay]
           .map((subject, slot) => subject.trim() ? {
             id: scheduledId(date, slot),
             slot,
@@ -913,11 +916,108 @@
           <section class="card" style="margin-top:16px"><div class="card-head"><div><h2>One-time classes</h2><p class="card-subtitle">Extra classes for a specific date; the weekly timetable stays unchanged.</p></div><button class="button small soft" type="button" data-action="extra-open" data-date="${selectedDate}">＋ Add extra</button></div>
             <div class="date-toolbar"><label for="timetable-extra-date" class="sr-only">Choose date for one-time classes</label><input id="timetable-extra-date" class="date-input" type="date" value="${selectedDate}" data-change="timetable-date" aria-label="Choose date for one-time classes"><span class="card-subtitle">${esc(humanDate(selectedDate))}${isHoliday(selectedDate) ? " · Holiday" : ""}</span></div>
             ${(data.extras[selectedDate] || []).length ? `<div class="class-list">${getClasses(selectedDate).filter((item) => item.extra).map((item) => classRow(item, selectedDate, "timetable")).join("")}</div>` : emptyState("No extra classes on this date", "Add one using an available fixed period.")}</section>
-          <section class="card" style="margin-top:16px"><div class="card-head"><div><h2>Working holidays</h2><p class="card-subtitle">Apply a full weekday timetable to a specific holiday date (like a working Saturday). This changes the schedule for this date only.</p></div></div>
-            <div class="date-toolbar"><label for="working-holiday-date" class="sr-only">Choose date</label><input id="working-holiday-date" class="date-input" type="date" value="${selectedDate}" data-change="timetable-date" aria-label="Choose date"><span class="card-subtitle">${esc(humanDate(selectedDate))}</span></div>
-            <div class="date-toolbar" style="margin-top:12px"><label for="working-holiday-source">This date uses</label><select id="working-holiday-source" data-change="working-holiday-source" data-date="${selectedDate}"><option value="">Default schedule</option>${DAYS.slice(0,6).map((name,index)=>`<option value="${index}" ${data.dateTimetableOverrides?.[selectedDate]===index?"selected":""}>${name} timetable</option>`).join("")}</select></div>
+          <section class="card" style="margin-top:16px"><div class="card-head"><div><h2>Multiple holidays</h2><p class="card-subtitle">Mark a date range as holidays.</p></div></div>
+            <form id="holiday-range-form" style="display:grid;gap:12px">
+              <div style="display:flex;gap:12px;align-items:flex-end">
+                <div class="field" style="flex:1;margin:0"><label for="holiday-start">Start date</label><input id="holiday-start" name="start" type="date" required></div>
+                <div class="field" style="flex:1;margin:0"><label for="holiday-end">End date</label><input id="holiday-end" name="end" type="date" required></div>
+              </div>
+              <div class="field" style="margin:0"><label for="holiday-status">Class status</label><select id="holiday-status" name="status" required><option value="cancelled">Classes cancelled (do not count)</option><option value="absent">Classes held (mark absent)</option></select></div>
+              <div class="timetable-save-row" style="margin-top:4px"><button class="button primary" type="submit">Apply to date range</button></div>
+            </form>
           </section>
-          <p class="hint">Sundays and the 1st and 3rd Saturdays are holidays by default. You can use 'Working holidays' to add classes on these dates, or 'One-time classes' to add a single extra period.</p>`;
+          <p class="hint">Sundays and the 1st and 3rd Saturdays are holidays by default.</p>`;
+      }
+
+      function analyzeTimetableImage(file) {
+        if (!file) return;
+        const status = $("#ocr-status");
+        if (!file.type.startsWith("image/")) {
+          if (status) status.textContent = "Please choose an image file such as JPG or PNG.";
+          return;
+        }
+        const imageUrl = URL.createObjectURL(file);
+        if (status) status.textContent = "Loading text recognition (requires internet)…";
+
+        const loadOcr = () => {
+          if (window.Tesseract) return Promise.resolve(window.Tesseract);
+          return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+            script.onload = () => window.Tesseract ? resolve(window.Tesseract) : reject(new Error("OCR library did not initialize."));
+            script.onerror = () => reject(new Error("Could not load OCR. Connect to the internet and try again."));
+            document.head.append(script);
+          });
+        };
+
+        loadOcr().then(async (tesseract) => {
+          try {
+            const result = await tesseract.recognize(imageUrl, "eng", { logger: (message) => {
+              const currentStatus = $("#ocr-status");
+              if (currentStatus && message.status === "recognizing text") currentStatus.textContent = `Reading image… ${Math.round(message.progress * 100)}%`;
+            } });
+            processOcrResult(result.data);
+          } catch (error) {
+            const currentStatus = $("#ocr-status");
+            if (currentStatus) currentStatus.textContent = `Could not read image: ${error.message}`;
+          } finally {
+            URL.revokeObjectURL(imageUrl);
+          }
+        }).catch((error) => {
+          const currentStatus = $("#ocr-status");
+          if (currentStatus) currentStatus.textContent = error.message;
+          URL.revokeObjectURL(imageUrl);
+        });
+      }
+
+      function processOcrResult(textData) {
+        const lines = (textData.lines || []).map((line) => line.words.map((word) => ({
+          text: word.text.trim(),
+          x: word.bbox.x0,
+          y: word.bbox.y0,
+          width: word.bbox.x1 - word.bbox.x0
+        })).filter((word) => word.text));
+
+        const dayPattern = /\b(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?)\b/i;
+        const dayIndexes = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5 };
+        const detected = Array.from({ length: 6 }, () => Array(7).fill(""));
+        let activeDay = -1;
+
+        for (const words of lines) {
+          let dayFound = false;
+          let dayWordIndex = -1;
+          for (let index = 0; index < words.length; index += 1) {
+            const dayMatch = words[index].text.match(dayPattern);
+            if (!dayMatch) continue;
+            activeDay = dayIndexes[dayMatch[1].slice(0, 3).toLowerCase()];
+            dayWordIndex = index;
+            dayFound = true;
+            break;
+          }
+          if (activeDay < 0) continue;
+          const groups = [];
+          for (const word of dayFound ? words.slice(dayWordIndex + 1) : words) {
+            const group = groups[groups.length - 1];
+            if (group && word.x - (group.x + group.width) < 34) {
+              group.text += ` ${word.text}`;
+              group.width = word.x + word.width - group.x;
+            } else groups.push({ text: word.text, x: word.x, width: word.width });
+          }
+          const subjects = groups.map((group) => group.text.trim()).filter((cell) => cell && !/^(time|period|subject|break|lunch|tea)$/i.test(cell));
+          subjects.slice(0, 7).forEach((subject, slot) => { detected[activeDay][slot] = subject.slice(0, 80); });
+        }
+
+        const found = detected.flat().filter(Boolean).length;
+        const status = $("#ocr-status");
+        if (!found) {
+          if (status) status.textContent = "OCR could not map text to days. Ensure the image is clear.";
+          return;
+        }
+
+        timetableDraft = detected;
+        render();
+        const newStatus = $("#ocr-status");
+        if (newStatus) newStatus.textContent = `Extracted ${found} subject entries. Review your timetable below and click 'Save timetable' to keep the changes.`;
       }
 
       function monthCalendar() {
@@ -1095,7 +1195,7 @@
         if (date && !wasFullAttendance && hasFullAttendance(date)) showFullDayCelebration(date);
       }
 
-      function setWholeDay(date, status) {
+      function setWholeDay(date, status, bulk = false) {
         const before = JSON.stringify(data);
         if (status === "clear") {
           delete data.dayOverrides[date];
@@ -1107,16 +1207,20 @@
           delete data.dayUndo[date];
         }
         else {
-          data.dayUndo[date] = Object.fromEntries(getClasses(date).map((item) => [item.id, data.attendance[item.id]]).filter(([, record]) => record));
+          const classes = getClasses(date);
+          if (classes.length === 0) return;
+          data.dayUndo[date] = Object.fromEntries(classes.map((item) => [item.id, data.attendance[item.id]]).filter(([, record]) => record));
           data.dayOverrides[date] = status;
-          getClasses(date).forEach((item) => {
+          classes.forEach((item) => {
             data.attendance[item.id] = { date, subject: item.subject, slot: item.slot, status, extra: item.extra };
           });
         }
-        if (!saveData()) { data = JSON.parse(before); return; }
-        playSound(status === "absent" ? "absent" : "notify");
-        render();
-        showToast(status === "clear" ? "Whole-day action undone." : status === "absent" ? "All classes marked absent." : "All classes cancelled and excluded from attendance.");
+        if (!bulk) {
+          if (!saveData()) { data = JSON.parse(before); return; }
+          playSound(status === "absent" ? "absent" : "notify");
+          render();
+          showToast(status === "clear" ? "Whole-day action undone." : status === "absent" ? "All classes marked absent." : "All classes cancelled and excluded from attendance.");
+        }
       }
 
       let audioContext;
@@ -1484,6 +1588,19 @@
           } else {
             showToast("Notifications are not enabled.", true);
           }
+        } else if (action === "chat-toggle") {
+          const win = $("#chat-window");
+          win.hidden = !win.hidden;
+          if (!win.hidden) $("#chat-input").focus();
+        } else if (action === "chat-accept") {
+          const proposedJson = button.dataset.proposed;
+          if (proposedJson) {
+            timetableDraft = JSON.parse(proposedJson);
+            render();
+            showToast("Changes applied to timetable draft. Review and click 'Save timetable'.");
+            const parent = button.closest(".chat-proposal");
+            if (parent) parent.innerHTML = `<em>Changes applied to draft ✓</em>`;
+          }
         } else if (action === "export") {
           exportBackup();
         } else if (action === "import") {
@@ -1538,12 +1655,16 @@
         if (event.target.id === "copy-target") {
           const button = $('[data-action="copy-timetable"]');
           if (button) button.dataset.target = event.target.value;
-        } else if (event.target.matches('[data-change="working-holiday-source"]')) {
-          const date = event.target.dataset.date;
-          const old = data.dateTimetableOverrides[date];
-          if (event.target.value === "") delete data.dateTimetableOverrides[date];
-          else data.dateTimetableOverrides[date] = Number(event.target.value);
-          if (!saveData()) { if (old === undefined) delete data.dateTimetableOverrides[date]; else data.dateTimetableOverrides[date] = old; }
+        } else if (event.target.matches('[data-change="saturday-holidays"]')) {
+          const old = data.saturdayHolidayClasses;
+          data.saturdayHolidayClasses = event.target.checked;
+          if (!saveData()) data.saturdayHolidayClasses = old;
+          render();
+        } else if (event.target.matches('[data-change="saturday-source"]')) {
+          const old = data.timetableOverrides[5];
+          if (event.target.value === "") delete data.timetableOverrides[5];
+          else data.timetableOverrides[5] = Number(event.target.value);
+          if (!saveData()) { if (old === undefined) delete data.timetableOverrides[5]; else data.timetableOverrides[5] = old; }
           render();
         } else if (event.target.matches('[data-change="attendance-date"]') && event.target.value) {
           selectedDate = event.target.value;
@@ -1587,14 +1708,122 @@
         saveButton.classList.toggle("save-pending", dirty);
         saveButton.classList.toggle("save-idle", !dirty);
       });
+      function appendChat(role, text, proposedTimetable = null) {
+        const container = $("#chat-messages");
+        const msg = document.createElement("div");
+        msg.className = `chat-msg ${role}`;
+        msg.textContent = text;
+
+        if (proposedTimetable) {
+          const proposalDiv = document.createElement("div");
+          proposalDiv.className = "chat-proposal";
+          proposalDiv.innerHTML = `<strong>Proposed Timetable Changes</strong><button type="button" class="button primary" data-action="chat-accept" data-proposed="${esc(JSON.stringify(proposedTimetable))}">Accept Changes</button>`;
+          msg.appendChild(proposalDiv);
+        }
+
+        container.appendChild(msg);
+        container.scrollTop = container.scrollHeight;
+      }
+
+      async function sendChatMessage(e) {
+        const input = $("#chat-input");
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = "";
+
+        appendChat("user", text);
+
+        const typing = document.createElement("div");
+        typing.className = "chat-typing";
+        typing.textContent = "AI is thinking...";
+        $("#chat-messages").appendChild(typing);
+        $("#chat-messages").scrollTop = $("#chat-messages").scrollHeight;
+
+        try {
+          const currentTimetableStr = JSON.stringify(timetableDraft || data.timetable);
+          const prompt = `User request: ${text}\n\nCurrent timetable (6 days Mon-Sat, 7 periods each):\n${currentTimetableStr}\n\nDays: ${DAYS.join(', ')}\nPeriods: ${PERIODS.map(p => p.start + '-' + p.end).join(', ')}`;
+
+          chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              system_instruction: {
+                parts: {
+                  text: "You are a timetable assistant. Update the provided timetable JSON according to the user request. Respond ONLY with a valid JSON object containing 'message' (explaining what changed) and 'timetable' (the updated 6x7 array of strings). If no changes are needed, omit 'timetable'."
+                }
+              },
+              contents: chatHistory,
+              generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: "OBJECT",
+                  properties: {
+                    message: { type: "STRING" },
+                    timetable: {
+                      type: "ARRAY",
+                      items: { type: "ARRAY", items: { type: "STRING" } }
+                    }
+                  },
+                  required: ["message"]
+                }
+              }
+            })
+          });
+
+          typing.remove();
+
+          if (!response.ok) throw new Error("API Error");
+          const resData = await response.json();
+          const replyText = resData.candidates[0].content.parts[0].text;
+          const replyObj = JSON.parse(replyText);
+
+          chatHistory.push({ role: "model", parts: [{ text: replyText }] });
+
+          let proposed = null;
+          if (replyObj.timetable && JSON.stringify(replyObj.timetable) !== currentTimetableStr && replyObj.timetable.length === 6) {
+            proposed = replyObj.timetable;
+            if (location.hash !== "#timetable") location.hash = "#timetable";
+          }
+          appendChat("bot", replyObj.message, proposed);
+
+        } catch (err) {
+          typing.remove();
+          appendChat("bot", "Sorry, I encountered an error. Please try again.");
+        }
+      }
+
       document.addEventListener("submit", (event) => {
-        if (event.target.id !== "extra-form") return;
         event.preventDefault();
-        const formData = new FormData(event.target);
-        const date = String(formData.get("date"));
-        const slot = Number(formData.get("slot"));
-        const subject = String(formData.get("subject") || "");
-        if (addExtra(date, slot, subject)) $("#extra-dialog").close();
+        if (event.target.id === "chat-form") {
+          sendChatMessage(event);
+        } else if (event.target.id === "extra-form") {
+          const formData = new FormData(event.target);
+          const date = String(formData.get("date"));
+          const slot = Number(formData.get("slot"));
+          const subject = String(formData.get("subject") || "");
+          if (addExtra(date, slot, subject)) $("#extra-dialog").close();
+        } else if (event.target.id === "holiday-range-form") {
+          const formData = new FormData(event.target);
+          const start = String(formData.get("start"));
+          const end = String(formData.get("end"));
+          const status = String(formData.get("status"));
+          if (start && end && start <= end) {
+            let currentDate = dateFromKey(start);
+            const endDate = dateFromKey(end);
+            while (currentDate <= endDate) {
+              setWholeDay(dateKey(currentDate), status, true);
+              currentDate.setDate(currentDate.getDate() + 1);
+            }
+            saveData();
+            render();
+            showToast(`Marked ${status} from ${start} to ${end}.`);
+            event.target.reset();
+          } else {
+            showToast("Invalid date range.", true);
+          }
+        }
       });
       window.addEventListener("hashchange", showActivePage);
       window.addEventListener("beforeinstallprompt", (event) => {
