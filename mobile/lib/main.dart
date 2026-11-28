@@ -202,6 +202,7 @@ class _ClassmateHomeState extends State<ClassmateHome> {
             channelDescription: 'Notifications for class start and attendance',
             importance: Importance.max,
             priority: Priority.high,
+            sound: RawResourceAndroidNotificationSound('notification'),
             actions: <AndroidNotificationAction>[
               AndroidNotificationAction('present', 'Present'),
               AndroidNotificationAction('absent', 'Absent'),

@@ -1119,9 +1119,10 @@
       let audioContext;
       let currentAudio = null;
       function playSound(kind) {
-        if (kind === "present" || kind === "absent") {
+        if (kind === "present" || kind === "absent" || kind === "notify") {
+          const file = kind === "notify" ? "notification" : kind;
           if (currentAudio) currentAudio.pause();
-          currentAudio = new Audio(`../assets/${kind}.mp3`);
+          currentAudio = new Audio(`../assets/${file}.mp3`);
           currentAudio.play().catch(() => {});
           return;
         }
